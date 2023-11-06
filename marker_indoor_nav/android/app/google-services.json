@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "163490541050",
+    "project_id": "marker-indoor-nav",
+    "storage_bucket": "marker-indoor-nav.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:163490541050:android:96eaf1b96d35b85ef4c843",
+        "android_client_info": {
+          "package_name": "com.example.marker_indoor_nav"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBiX6CjwBwUtuuELZKhVhsA2z3O0qLc6x4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
