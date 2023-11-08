@@ -1,6 +1,8 @@
+// ignore_for_file: prefer_const_constructors
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:marker_indoor_nav/home.dart';
+import 'package:marker_indoor_nav/mapping/home.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -17,9 +19,10 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
         title: 'Marker Based Indoor Navigation App',
         theme: ThemeData(primarySwatch: Colors.blue),
+        debugShowCheckedModeBanner: false,
         initialRoute: '/home',
         routes: {
-          '/home': (context) => const MyHomePage(title: 'Mapping Page'),
+          '/home': (context) => MappingPage(),
         });
   }
 }

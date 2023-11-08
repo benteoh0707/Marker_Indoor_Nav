@@ -4,7 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'package:marker_indoor_nav/map.dart';
+import 'package:marker_indoor_nav/mapping/map.dart';
 
 final FirebaseFirestore firestore = FirebaseFirestore.instance;
 final CollectionReference profiles = firestore.collection('profiles');
@@ -51,7 +51,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
 
   void _createProfile() async {
     String profileName = _profileNameController.text.trim();
-    int numberOfFloors = int.parse(_numberOfFloorsController.text);
+    int numberOfFloors;
 
     // Ensure the profileName isn't empty
     if (profileName.isEmpty) {
@@ -77,12 +77,19 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
         'numberOfFloors': numberOfFloors,
         'timestamp': FieldValue.serverTimestamp(),
       });
+
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Profile Created.'),
+      ));
     } catch (error) {
       print("Error adding document: $error");
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('An error occurred. Please try again.'),
       ));
     }
+
+    _profileNameController.clear();
+    _numberOfFloorsController.clear();
   }
 }
 

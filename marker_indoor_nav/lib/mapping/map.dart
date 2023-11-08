@@ -1,12 +1,16 @@
-// ignore_for_file: constant_identifier_names, use_build_context_synchronously, avoid_print
+// ignore_for_file: constant_identifier_names, use_build_context_synchronously, avoid_print, prefer_const_constructors
 
 import 'dart:async';
+import 'dart:typed_data';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/rendering.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:convert';
+import 'package:qr_flutter/qr_flutter.dart';
 
 // Firebase setup and function
 
@@ -29,6 +33,10 @@ class _EditMapPageState extends State<EditMapPage> {
   bool hasImage = false;
 
   final GlobalKey imageKey = GlobalKey();
+  final GlobalKey _qrkey = GlobalKey();
+
+  bool dirExists = false;
+  dynamic externalDir = '/storage/emulated/0/Download/Qr_code';
 
   List<Circle> circles = [];
 
@@ -58,9 +66,9 @@ class _EditMapPageState extends State<EditMapPage> {
 
   Future<void> _loadCirclesFromFirebase() async {
     final mapId = '${widget.profileName}_$selectedFloor';
-    final ref = FirebaseFirestore.instance.collection('maps').doc(mapId);
+    final doc =
+        await FirebaseFirestore.instance.collection('maps').doc(mapId).get();
 
-    final doc = await ref.get();
     if (doc.exists) {
       final data = doc.data() as Map<String, dynamic>;
       final circlesString = data['circles'];
@@ -91,7 +99,8 @@ class _EditMapPageState extends State<EditMapPage> {
 
     final imageName = '${widget.profileName}_${selectedFloor}_map.png';
     final imageFile = File(image.path);
-    final ref = FirebaseStorage.instance.ref().child('maps').child(imageName);
+    final ref =
+        FirebaseStorage.instance.ref().child('blueprints').child(imageName);
 
     try {
       await ref.putFile(imageFile);
@@ -106,8 +115,8 @@ class _EditMapPageState extends State<EditMapPage> {
 
   Future<void> _checkAndDownloadImage() async {
     final imageName = '${widget.profileName}_${selectedFloor}_map.png';
-    final ref = FirebaseStorage.instance.ref().child('maps').child(imageName);
-
+    final ref =
+        FirebaseStorage.instance.ref().child('blueprints').child(imageName);
     // Checking if the image exists
     try {
       final result = await ref.getDownloadURL();
@@ -132,34 +141,59 @@ class _EditMapPageState extends State<EditMapPage> {
         TextEditingController(text: circle.name);
     TextEditingController descriptionController =
         TextEditingController(text: circle.description);
-
     return showDialog<void>(
       context: context,
       barrierDismissible: false, // User must tap the button to close the dialog
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Circle Information'),
-          content: SingleChildScrollView(
-            child: ListBody(
-              children: <Widget>[
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    hintText: 'Name',
+        return Scaffold(
+            appBar: AppBar(
+              title: Text('Marker Information'),
+              actions: <Widget>[
+                IconButton(
+                  icon: Icon(
+                    Icons.download,
+                    color: Colors.white,
                   ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(
-                    hintText: 'Description',
-                  ),
-                ),
+                  onPressed: () {
+                    _captureAndSavePng(nameController.text.isNotEmpty
+                        ? nameController.text
+                        : circle.id.replaceAll(RegExp(r'[:.]'), '-'));
+                  },
+                )
               ],
             ),
-          ),
-          actions: <Widget>[
-            TextButton(
+            body: Center(
+              child: SingleChildScrollView(
+                  padding: EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      RepaintBoundary(
+                          key: _qrkey,
+                          child: QrImageView(
+                            data: circle.id,
+                            size: 200,
+                            backgroundColor: Colors.white,
+                          )),
+                      SizedBox(
+                        height: 30,
+                      ),
+                      TextField(
+                        controller: nameController,
+                        decoration: const InputDecoration(
+                          hintText: 'Name',
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                          controller: descriptionController,
+                          decoration: const InputDecoration(
+                            hintText: 'Description',
+                          )),
+                    ],
+                  )),
+            ),
+            floatingActionButton: TextButton(
               child: const Text('Save'),
               onPressed: () {
                 setState(() {
@@ -168,11 +202,58 @@ class _EditMapPageState extends State<EditMapPage> {
                 });
                 Navigator.of(context).pop();
               },
-            ),
-          ],
-        );
+            ));
       },
     );
+  }
+
+  Future<void> _captureAndSavePng(String id) async {
+    try {
+      RenderRepaintBoundary boundary =
+          _qrkey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      var image = await boundary.toImage(pixelRatio: 3.0);
+
+      //Drawing White Background because Qr Code is Black
+      final whitePaint = Paint()..color = Colors.white;
+      final recorder = PictureRecorder();
+      final canvas = Canvas(recorder,
+          Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()));
+      canvas.drawRect(
+          Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+          whitePaint);
+      canvas.drawImage(image, Offset.zero, Paint());
+      final picture = recorder.endRecording();
+      final img = await picture.toImage(image.width, image.height);
+      ByteData? byteData = await img.toByteData(format: ImageByteFormat.png);
+      Uint8List pngBytes = byteData!.buffer.asUint8List();
+
+      //Check for duplicate file name to avoid Override
+      String fileName = id;
+      int i = 1;
+      while (await File('$externalDir/$fileName.png').exists()) {
+        fileName = '${fileName}_$i';
+        i++;
+      }
+
+      // Check if Directory Path exists or not
+      dirExists = await File(externalDir).exists();
+      //if not then create the path
+      if (!dirExists) {
+        await Directory(externalDir).create(recursive: true);
+        dirExists = true;
+      }
+
+      final file = await File('$externalDir/$fileName.png').create();
+      await file.writeAsBytes(pngBytes);
+
+      if (!mounted) return;
+      const snackBar = SnackBar(content: Text('QR code saved to gallery'));
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    } catch (e) {
+      if (!mounted) return;
+      const snackBar = SnackBar(content: Text('Something went wrong!!!'));
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    }
   }
 
   void _showCircleOptions(Circle circle) {
@@ -338,14 +419,15 @@ class _EditMapPageState extends State<EditMapPage> {
               left: 10,
               bottom: 10,
               child: ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   final RenderBox renderBox =
                       imageKey.currentContext!.findRenderObject() as RenderBox;
                   final position = renderBox.localToGlobal(Offset.zero);
-
+                  Circle circle =
+                      Circle(position, DateTime.now().toIso8601String());
+                  _showCircleInfoDialog(circle);
                   setState(() {
-                    circles.add(
-                        Circle(position, DateTime.now().toIso8601String()));
+                    circles.add(circle);
                   });
                 },
                 child: const Text('Add Label'),
