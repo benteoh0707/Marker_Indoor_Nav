@@ -1,16 +1,15 @@
-// ignore_for_file: constant_identifier_names, use_build_context_synchronously, avoid_print, prefer_const_constructors
+// ignore_for_file: constant_identifier_names, use_build_context_synchronously, avoid_print, prefer_const_constructors, non_constant_identifier_names, camel_case_types
 
 import 'dart:async';
-import 'dart:typed_data';
-import 'dart:ui';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:marker_indoor_nav/mapping/add_node_page.dart';
 import 'dart:convert';
-import 'package:qr_flutter/qr_flutter.dart';
 
 // Firebase setup and function
 
@@ -31,14 +30,15 @@ class _EditMapPageState extends State<EditMapPage> {
   String? selectedFloor;
   Image? uploadedImage;
   bool hasImage = false;
+  bool showOption = true;
 
   final GlobalKey imageKey = GlobalKey();
-  final GlobalKey _qrkey = GlobalKey();
 
   bool dirExists = false;
   dynamic externalDir = '/storage/emulated/0/Download/Qr_code';
 
   List<Circle> circles = [];
+  List<String> circles_id = [];
 
   static const double MIN_SIZE = 10.0; // Minimum circle size
   static const double MAX_SIZE = 100.0; // Maximum circle size
@@ -75,7 +75,6 @@ class _EditMapPageState extends State<EditMapPage> {
       final circlesJson = jsonDecode(circlesString) as List;
       final loadedCircles =
           circlesJson.map((circleJson) => Circle.fromJson(circleJson)).toList();
-
       setState(() {
         circles = loadedCircles;
       });
@@ -136,126 +135,6 @@ class _EditMapPageState extends State<EditMapPage> {
     _loadCirclesFromFirebase();
   }
 
-  Future<void> _showCircleInfoDialog(Circle circle) async {
-    TextEditingController nameController =
-        TextEditingController(text: circle.name);
-    TextEditingController descriptionController =
-        TextEditingController(text: circle.description);
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: false, // User must tap the button to close the dialog
-      builder: (BuildContext context) {
-        return Scaffold(
-            appBar: AppBar(
-              title: Text('Marker Information'),
-              actions: <Widget>[
-                IconButton(
-                  icon: Icon(
-                    Icons.download,
-                    color: Colors.white,
-                  ),
-                  onPressed: () {
-                    _captureAndSavePng(nameController.text.isNotEmpty
-                        ? nameController.text
-                        : circle.id.replaceAll(RegExp(r'[:.]'), '-'));
-                  },
-                )
-              ],
-            ),
-            body: Center(
-              child: SingleChildScrollView(
-                  padding: EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      RepaintBoundary(
-                          key: _qrkey,
-                          child: QrImageView(
-                            data: circle.id,
-                            size: 200,
-                            backgroundColor: Colors.white,
-                          )),
-                      SizedBox(
-                        height: 30,
-                      ),
-                      TextField(
-                        controller: nameController,
-                        decoration: const InputDecoration(
-                          hintText: 'Name',
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      TextField(
-                          controller: descriptionController,
-                          decoration: const InputDecoration(
-                            hintText: 'Description',
-                          )),
-                    ],
-                  )),
-            ),
-            floatingActionButton: TextButton(
-              child: const Text('Save'),
-              onPressed: () {
-                setState(() {
-                  circle.name = nameController.text.trim();
-                  circle.description = descriptionController.text.trim();
-                });
-                Navigator.of(context).pop();
-              },
-            ));
-      },
-    );
-  }
-
-  Future<void> _captureAndSavePng(String id) async {
-    try {
-      RenderRepaintBoundary boundary =
-          _qrkey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      var image = await boundary.toImage(pixelRatio: 3.0);
-
-      //Drawing White Background because Qr Code is Black
-      final whitePaint = Paint()..color = Colors.white;
-      final recorder = PictureRecorder();
-      final canvas = Canvas(recorder,
-          Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()));
-      canvas.drawRect(
-          Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
-          whitePaint);
-      canvas.drawImage(image, Offset.zero, Paint());
-      final picture = recorder.endRecording();
-      final img = await picture.toImage(image.width, image.height);
-      ByteData? byteData = await img.toByteData(format: ImageByteFormat.png);
-      Uint8List pngBytes = byteData!.buffer.asUint8List();
-
-      //Check for duplicate file name to avoid Override
-      String fileName = id;
-      int i = 1;
-      while (await File('$externalDir/$fileName.png').exists()) {
-        fileName = '${fileName}_$i';
-        i++;
-      }
-
-      // Check if Directory Path exists or not
-      dirExists = await File(externalDir).exists();
-      //if not then create the path
-      if (!dirExists) {
-        await Directory(externalDir).create(recursive: true);
-        dirExists = true;
-      }
-
-      final file = await File('$externalDir/$fileName.png').create();
-      await file.writeAsBytes(pngBytes);
-
-      if (!mounted) return;
-      const snackBar = SnackBar(content: Text('QR code saved to gallery'));
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
-    } catch (e) {
-      if (!mounted) return;
-      const snackBar = SnackBar(content: Text('Something went wrong!!!'));
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
-    }
-  }
-
   void _showCircleOptions(Circle circle) {
     showModalBottomSheet(
         context: context,
@@ -265,15 +144,20 @@ class _EditMapPageState extends State<EditMapPage> {
             children: <Widget>[
               ListTile(
                 leading: const Icon(Icons.drag_handle),
-                title: const Text('Move'),
+                title:
+                    circle.selected == false ? Text('Move') : Text('Unmoved'),
                 onTap: () {
                   Navigator.pop(context);
                   // Set circle to moving state, this will allow user to drag the circle
                   setState(() {
-                    for (var c in circles) {
-                      c.selected = false;
+                    if (circle.selected == false) {
+                      for (var c in circles) {
+                        c.selected = false;
+                      }
+                      circle.selected = true;
+                    } else {
+                      circle.selected = false;
                     }
-                    circle.selected = true;
                   });
                 },
               ),
@@ -282,8 +166,11 @@ class _EditMapPageState extends State<EditMapPage> {
                 title: const Text('Edit'),
                 onTap: () {
                   Navigator.pop(context);
-                  _showCircleInfoDialog(
-                      circle); // Use your existing method to show the prompt
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                          builder: (BuildContext context) => AddNodePage(
+                              circle))); // Use your existing method to show the prompt
                 },
               ),
               ListTile(
@@ -292,6 +179,11 @@ class _EditMapPageState extends State<EditMapPage> {
                 onTap: () async {
                   Navigator.pop(context);
                   // Delete circle from the UI
+                  for (var c in circle.connected_nodes.keys) {
+                    Circle connected_c =
+                        circles.firstWhere((element) => element.id == c);
+                    connected_c.connected_nodes.remove(circle.id);
+                  }
                   setState(() {
                     circles.remove(circle);
                   });
@@ -304,10 +196,90 @@ class _EditMapPageState extends State<EditMapPage> {
         });
   }
 
+  showEdgeOptions(Circle start, Circle end) {
+    TextEditingController distanceController =
+        TextEditingController(text: start.connected_nodes[end.id].toString());
+
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            ListTile(
+              leading: const Icon(Icons.social_distance),
+              title: Text('Distance'),
+              onTap: () {
+                Navigator.pop(context);
+                // Set circle to moving state, this will allow user to drag the circle
+                showDialog(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: Text('Distance'),
+                        content: TextField(
+                          controller: distanceController,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: <TextInputFormatter>[
+                            FilteringTextInputFormatter.digitsOnly
+                          ],
+                          decoration:
+                              InputDecoration(hintText: 'Enter Distance'),
+                        ),
+                        actions: [
+                          TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  start.connected_nodes[end.id] =
+                                      num.parse(distanceController.text);
+                                  end.connected_nodes[start.id] =
+                                      num.parse(distanceController.text);
+                                });
+                                Navigator.of(context).pop();
+                              },
+                              child: Text('Save'))
+                        ],
+                      );
+                    });
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete),
+              title: const Text('Delete'),
+              onTap: () async {
+                Navigator.pop(context);
+                setState(() {
+                  start.connected_nodes.remove(end.id);
+                  end.connected_nodes.remove(start.id);
+                });
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Edit ${widget.profileName}')),
+      resizeToAvoidBottomInset: false,
+      appBar:
+          AppBar(title: Text('Edit ${widget.profileName}'), actions: <Widget>[
+        IconButton(
+          iconSize: 25,
+          padding: EdgeInsets.only(right: 25.0),
+          icon: Icon(
+            Icons.save,
+            size: 30,
+            color: Colors.white,
+          ),
+          onPressed: () async {
+            await _saveCirclesToFirebase();
+            Navigator.pop(context);
+          },
+        )
+      ]),
       body: GestureDetector(
         onScaleUpdate: (ScaleUpdateDetails details) {
           setState(() {
@@ -339,14 +311,7 @@ class _EditMapPageState extends State<EditMapPage> {
               children: [
                 Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Text(widget.profileName,
-                      style: const TextStyle(
-                          fontSize: 24, fontWeight: FontWeight.bold)),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
                   child: Row(
-                    // Wrap the dropdown and the button in a Row widget
                     children: [
                       Expanded(
                         // Make the dropdown take up all available horizontal space
@@ -378,79 +343,165 @@ class _EditMapPageState extends State<EditMapPage> {
                 ),
                 Align(
                   alignment: Alignment.topCenter,
-                  child: hasImage && uploadedImage != null
-                      ? Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.red, width: 2),
-                          ),
-                          key: imageKey,
-                          width: MediaQuery.of(context)
-                              .size
-                              .width, // Use the full width
-                          height: MediaQuery.of(context).size.height /
-                              2, // Use half the available height
-                          child: Image(
-                            image: uploadedImage!.image,
-                            fit: BoxFit.contain,
-                            alignment: Alignment.center,
-                          ),
-                        )
-                      : Container(
-                          width: MediaQuery.of(context).size.width,
-                          height: MediaQuery.of(context).size.height / 2,
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.red, width: 2),
-                          ),
-                          child: const Center(
-                            child: Text(
-                              "Please upload a map.",
-                              style: TextStyle(
-                                color: Colors.black,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
+                  child: Stack(
+                    children: [
+                      hasImage && uploadedImage != null
+                          ? Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.red, width: 2),
+                              ),
+                              key: imageKey,
+                              width: MediaQuery.of(context)
+                                  .size
+                                  .width, // Use the full width
+                              height: MediaQuery.of(context).size.height /
+                                  1.5, // Use half the available height
+                              child: Image(
+                                image: uploadedImage!.image,
+                                fit: BoxFit.contain,
+                                alignment: Alignment.center,
+                              ),
+                            )
+                          : Container(
+                              width: MediaQuery.of(context).size.width,
+                              height: MediaQuery.of(context).size.height / 1.5,
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.red, width: 2),
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  "Please upload a map.",
+                                  style: TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
+                    ],
+                  ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () async {
+                          final RenderBox renderBox = imageKey.currentContext!
+                              .findRenderObject() as RenderBox;
+                          final position = renderBox.localToGlobal(Offset.zero);
+                          Circle circle = Circle(
+                              position, DateTime.now().toIso8601String());
+                          await Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                  builder: (BuildContext context) =>
+                                      AddNodePage(circle)));
+                          setState(() {
+                            circles.add(circle);
+                          });
+                        },
+                        child: const Text('Add Node'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            for (var c in circles) {
+                              c.selected = false;
+                            }
+                            if (showOption) {
+                              showOption = false;
+                            } else {
+                              showOption = true;
+                              for (var i = 0; i < circles_id.length; i++) {
+                                final current_circle = circles.firstWhere(
+                                    (element) => element.id == circles_id[i]);
+                                if (i + 1 != circles_id.length) {
+                                  current_circle
+                                      .connected_nodes[circles_id[i + 1]] = 0;
+                                }
+                                if (i != 0) {
+                                  current_circle
+                                      .connected_nodes[circles_id[i - 1]] = 0;
+                                }
+                              }
+                              circles_id = [];
+                            }
+                          });
+                        },
+                        child:
+                            showOption ? Text('Connect Nodes') : Text('Save'),
+                      ),
+                    ],
+                  ),
+                )
               ],
             ),
-            Positioned(
-              left: 10,
-              bottom: 10,
-              child: ElevatedButton(
-                onPressed: () async {
-                  final RenderBox renderBox =
-                      imageKey.currentContext!.findRenderObject() as RenderBox;
-                  final position = renderBox.localToGlobal(Offset.zero);
-                  Circle circle =
-                      Circle(position, DateTime.now().toIso8601String());
-                  _showCircleInfoDialog(circle);
-                  setState(() {
-                    circles.add(circle);
-                  });
-                },
-                child: const Text('Add Label'),
-              ),
-            ),
-            Positioned(
-              right: 10, // 10 pixels from the right
-              bottom: 10, // 10 pixels from the bottom
-              child: ElevatedButton(
-                onPressed: () async {
-                  await _saveCirclesToFirebase();
-                  Navigator.pop(context);
-                },
-                child: const Text('Save & Exit'),
-              ),
-            ),
+            ...circles.map((start) {
+              for (var dest_id in start.connected_nodes.keys) {
+                Circle end =
+                    circles.firstWhere((element) => element.id == dest_id);
+
+                return CustomPaint(
+                  painter: drawEdges(start, end),
+                );
+              }
+
+              return Divider();
+            }),
+            ...circles.map((start) {
+              for (var dest_id in start.connected_nodes.keys) {
+                Circle end =
+                    circles.firstWhere((element) => element.id == dest_id);
+                double box_width = (start.position.dx - end.position.dx).abs();
+                double box_height = (start.position.dy - end.position.dy).abs();
+                double edge_node_radius = 15.0;
+                return Positioned(
+                  left: (box_width / 2) +
+                      min(start.position.dx, end.position.dx) +
+                      edge_node_radius / 2,
+                  top: (box_height / 2) +
+                      min(start.position.dy, end.position.dy) +
+                      edge_node_radius / 2,
+                  child: GestureDetector(
+                    onTap: () {
+                      showEdgeOptions(start, end);
+                    },
+                    child: Container(
+                      width: edge_node_radius,
+                      height: edge_node_radius,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.blue,
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              return Divider();
+            }),
             ...circles.map((circle) {
               return Positioned(
                 left: circle.position.dx,
                 top: circle.position.dy,
                 child: GestureDetector(
                   onTap: () async {
-                    _showCircleOptions(circle);
+                    if (showOption) {
+                      _showCircleOptions(circle);
+                    } else {
+                      setState(() {
+                        if (circle.selected == false) {
+                          circles_id.add(circle.id);
+                          circle.selected = true;
+                        } else {
+                          circles_id.remove(circle.id);
+                          circle.selected = false;
+                        }
+                      });
+                    }
                   },
                   onPanUpdate: (details) {
                     if (circle.selected == true) {
@@ -467,8 +518,11 @@ class _EditMapPageState extends State<EditMapPage> {
                     height: circle.size,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color:
-                          circle.selected == true ? Colors.green : Colors.blue,
+                      color: circle.selected == true && showOption
+                          ? Colors.green
+                          : circle.selected == true && !showOption
+                              ? Colors.orange
+                              : Colors.blue,
                     ),
                   ),
                 ),
@@ -489,6 +543,7 @@ class Circle {
   String? name;
   String? description;
   DateTime? lastTriggered;
+  Map<String, dynamic> connected_nodes = {};
 
   Circle(this.position, this.id, {this.size = 30.0, this.selected = false});
 
@@ -503,6 +558,7 @@ class Circle {
       'size': size,
       'name': name,
       'description': description,
+      'connected_nodes': connected_nodes,
     };
   }
 
@@ -515,6 +571,33 @@ class Circle {
     )
       ..name = json['name']
       ..description = json['description']
-      ..selected = json['selected'];
+      ..selected = json['selected']
+      ..connected_nodes = json['connected_nodes'];
+  }
+}
+
+class drawEdges extends CustomPainter {
+  Circle start, end;
+
+  drawEdges(this.start, this.end);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    var paint = Paint()
+      ..color = Colors.red
+      ..style = PaintingStyle.fill
+      ..strokeWidth = 5;
+
+    canvas.drawLine(
+        Offset(start.position.dx + start.size / 2,
+            start.position.dy + start.size / 2),
+        Offset(end.position.dx + end.size / 2, end.position.dy + end.size / 2),
+        paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return false;
+    //throw UnimplementedError();
   }
 }

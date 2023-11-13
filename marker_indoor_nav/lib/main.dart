@@ -23,6 +23,7 @@ class MyApp extends StatelessWidget {
         initialRoute: '/home',
         routes: {
           '/home': (context) => MappingPage(),
+          //'/addNode' : (context) => AddNodePage(),
         });
   }
 }
