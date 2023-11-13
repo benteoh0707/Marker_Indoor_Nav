@@ -1,4 +1,4 @@
-// ignore_for_file: use_key_in_widget_constructors, prefer_const_constructors, library_private_types_in_public_api, avoid_print, use_build_context_synchronously, non_constant_identifier_names
+// ignore_for_file: use_key_in_widget_constructors, prefer_const_constructors, library_private_types_in_public_api, avoid_print, use_build_context_synchronously, non_constant_identifier_names, iterable_contains_unrelated_type
 
 import 'dart:async';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -31,6 +31,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
     if (profileName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Please enter a profile name.'),
+      ));
+      return;
+    }
+
+    DocumentReference doc_ref =
+        _firestore.collection("profiles").doc(profileName);
+    if (doc_ref.id.contains(profileName)) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Profile existed.'),
       ));
       return;
     }
