@@ -78,6 +78,10 @@ class _EditMapPageState extends State<EditMapPage> {
       setState(() {
         circles = loadedCircles;
       });
+    } else {
+      setState(() {
+        circles = [];
+      });
     }
   }
 

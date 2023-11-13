@@ -2,7 +2,7 @@
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:marker_indoor_nav/mapping/home.dart';
+import 'package:marker_indoor_nav/mapping/building_profile.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -22,7 +22,7 @@ class MyApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         initialRoute: '/home',
         routes: {
-          '/home': (context) => MappingPage(),
+          '/home': (context) => EditProfilePage(),
           //'/addNode' : (context) => AddNodePage(),
         });
   }

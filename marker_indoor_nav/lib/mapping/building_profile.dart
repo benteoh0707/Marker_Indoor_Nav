@@ -1,56 +1,30 @@
-// ignore_for_file: use_key_in_widget_constructors, prefer_const_constructors, library_private_types_in_public_api, avoid_print, use_build_context_synchronously
+// ignore_for_file: use_key_in_widget_constructors, prefer_const_constructors, library_private_types_in_public_api, avoid_print, use_build_context_synchronously, non_constant_identifier_names
 
 import 'dart:async';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'package:flutter/services.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:marker_indoor_nav/mapping/map.dart';
 
-final FirebaseFirestore firestore = FirebaseFirestore.instance;
-final CollectionReference profiles = firestore.collection('profiles');
-
-class CreateProfilePage extends StatefulWidget {
+class EditProfilePage extends StatefulWidget {
   @override
-  _CreateProfilePageState createState() => _CreateProfilePageState();
+  _EditProfilePageState createState() => _EditProfilePageState();
 }
 
-class _CreateProfilePageState extends State<CreateProfilePage> {
-  final TextEditingController _profileNameController = TextEditingController();
-  final TextEditingController _numberOfFloorsController =
-      TextEditingController();
+class _EditProfilePageState extends State<EditProfilePage> {
+  final _firestore = FirebaseFirestore.instance;
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Create Profile')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextField(
-              controller: _profileNameController,
-              decoration: InputDecoration(labelText: 'Profile Name'),
-            ),
-            SizedBox(height: 20),
-            TextField(
-              controller: _numberOfFloorsController,
-              decoration: InputDecoration(labelText: 'Number of Floors'),
-              keyboardType: TextInputType.number,
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _createProfile,
-              child: Text('Create'),
-            ),
-          ],
-        ),
-      ),
-    );
+  Future<List<Map<String, dynamic>>> fetchProfiles() async {
+    QuerySnapshot snapshot = await _firestore.collection('profiles').get();
+
+    return snapshot.docs
+        .map((doc) => doc.data() as Map<String, dynamic>)
+        .toList();
   }
 
-  void _createProfile() async {
-    String profileName = _profileNameController.text.trim();
+  void _createProfile(String profileName, String numOfFloors) async {
     int numberOfFloors;
 
     // Ensure the profileName isn't empty
@@ -62,8 +36,15 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
     }
 
     try {
-      numberOfFloors = int.parse(_numberOfFloorsController.text);
+      numberOfFloors = int.parse(numOfFloors);
     } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Please enter a valid number for floors.'),
+      ));
+      return;
+    }
+
+    if (!(numberOfFloors > 0)) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Please enter a valid number for floors.'),
       ));
@@ -72,7 +53,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
 
     try {
       // Using Firestore
-      await firestore.collection("profiles").add({
+      await _firestore.collection("profiles").doc(profileName).set({
         'profileName': profileName,
         'numberOfFloors': numberOfFloors,
         'timestamp': FieldValue.serverTimestamp(),
@@ -87,31 +68,113 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
         content: Text('An error occurred. Please try again.'),
       ));
     }
-
-    _profileNameController.clear();
-    _numberOfFloorsController.clear();
   }
-}
 
-class EditProfilePage extends StatefulWidget {
-  @override
-  _EditProfilePageState createState() => _EditProfilePageState();
-}
+  createProfile() {
+    final TextEditingController profileNameController = TextEditingController();
+    final TextEditingController numberOfFloorsController =
+        TextEditingController();
 
-class _EditProfilePageState extends State<EditProfilePage> {
-  final _firestore = FirebaseFirestore.instance;
+    showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text('Create Profile'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: profileNameController,
+                  decoration: InputDecoration(labelText: 'Enter Profile Name'),
+                ),
+                SizedBox(
+                  height: 20,
+                ),
+                TextField(
+                  controller: numberOfFloorsController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: <TextInputFormatter>[
+                    FilteringTextInputFormatter.digitsOnly
+                  ],
+                  decoration:
+                      InputDecoration(labelText: 'Enter Number of Floor'),
+                ),
+                SizedBox(
+                  height: 20,
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _createProfile(profileNameController.text.trim(),
+                                numberOfFloorsController.text.trim());
+                          });
+                          Navigator.of(context).pop();
+                        },
+                        child: Text('Save')),
+                  ],
+                )
+              ],
+            ),
+          );
+        });
+  }
 
-  Future<List<Map<String, dynamic>>> fetchProfiles() async {
-    QuerySnapshot snapshot = await _firestore.collection('profiles').get();
-    return snapshot.docs
-        .map((doc) => doc.data() as Map<String, dynamic>)
-        .toList();
+  deleteProfile(String profName, int NoFloor) async {
+    await _firestore.collection("profiles").doc(profName).delete();
+    for (int i = 1; i <= NoFloor; i++) {
+      _firestore
+          .collection('maps')
+          .doc('${profName}_Floor $i')
+          .get()
+          .then((docSnapshot) async => {
+                if (docSnapshot.exists)
+                  {
+                    await _firestore
+                        .collection('maps')
+                        .doc('${profName}_Floor $i')
+                        .delete()
+                  }
+              });
+
+      FirebaseStorage.instance
+          .ref()
+          .child('blueprints')
+          .child('${profName}_Floor ${i}_map.png')
+          .getDownloadURL()
+          .then(
+            (url) async => {
+              await FirebaseStorage.instance
+                  .ref()
+                  .child('blueprints')
+                  .child('${profName}_Floor ${i}_map.png')
+                  .delete()
+            },
+          )
+          .catchError((error) => {print(error)});
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Edit Existing Profile')),
+      appBar: AppBar(title: Text('Building Profile'), actions: <Widget>[
+        IconButton(
+          iconSize: 25,
+          padding: EdgeInsets.only(right: 25.0),
+          icon: Icon(
+            Icons.add,
+            size: 30,
+            color: Colors.white,
+          ),
+          onPressed: () {
+            createProfile();
+            setState(() {});
+          },
+        )
+      ]),
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: fetchProfiles(),
         builder: (context, snapshot) {
@@ -126,21 +189,37 @@ class _EditProfilePageState extends State<EditProfilePage> {
               itemCount: profiles?.length ?? 0,
               itemBuilder: (context, index) {
                 final profile = profiles?[index];
-                return ListTile(
-                    title: Text(profile?['profileName']),
-                    subtitle:
-                        Text('Number of floors: ${profile?['numberOfFloors']}'),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => EditMapPage(
-                            profileName: profile?['profileName'],
-                            numberOfFloors: profiles?[index]['numberOfFloors'],
+                return Slidable(
+                  startActionPane:
+                      ActionPane(motion: StretchMotion(), children: [
+                    SlidableAction(
+                      backgroundColor: Colors.red,
+                      icon: Icons.delete,
+                      label: 'Delete',
+                      onPressed: (context) async {
+                        await deleteProfile(profile?['profileName'],
+                            profile?['numberOfFloors']);
+                        setState(() {});
+                      },
+                    ),
+                  ]),
+                  child: ListTile(
+                      title: Text(profile?['profileName'],
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text(
+                          'Number of floors: ${profile?['numberOfFloors']}'),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => EditMapPage(
+                              profileName: profile?['profileName'],
+                              numberOfFloors: profile?['numberOfFloors'],
+                            ),
                           ),
-                        ),
-                      );
-                    });
+                        );
+                      }),
+                );
               },
             );
           }
