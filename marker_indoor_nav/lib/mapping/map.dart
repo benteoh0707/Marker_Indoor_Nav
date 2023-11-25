@@ -422,23 +422,78 @@ class _EditMapPageState extends State<EditMapPage> {
                       ElevatedButton(
                         onPressed: () async {
                           if (showOption) {
-                            final RenderBox renderBox = imageKey.currentContext!
-                                .findRenderObject() as RenderBox;
-                            final position = renderBox.localToGlobal(Offset
-                                .zero); //todo: locate new node position by touching screen
-                            Circle circle = Circle(
-                                position, DateTime.now().toIso8601String());
-                            await Navigator.push(
-                                context,
-                                MaterialPageRoute<void>(
-                                    builder: (BuildContext context) =>
-                                        AddNodePage(circle)));
-                            setState(() {
-                              circles.add(circle);
-                            });
+                            Offset position = Offset.zero;
+                            final RenderBox renderBox =
+                                paddingKey.currentContext!.findRenderObject()
+                                    as RenderBox;
+                            bool touched = false;
+                            await showDialog(
+                              context: context,
+                              builder: (_) => Dialog(
+                                backgroundColor: Colors.transparent,
+                                insetPadding: EdgeInsets.all(0),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                        decoration: BoxDecoration(
+                                            color: Colors.transparent),
+                                        child: Text(
+                                          "Select a location to add a node",
+                                          style: TextStyle(
+                                              backgroundColor:
+                                                  Colors.transparent,
+                                              fontSize: 25,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white),
+                                        )),
+                                    GestureDetector(
+                                      onTapDown: (details) {
+                                        position = Offset(
+                                            details.localPosition.dx - 15,
+                                            details.localPosition.dy +
+                                                renderBox.size.height -
+                                                15);
+                                        Navigator.pop(context);
+                                        touched = true;
+                                      },
+                                      child: SizedBox(
+                                        width:
+                                            MediaQuery.of(context).size.width,
+                                        height:
+                                            MediaQuery.of(context).size.height /
+                                                1.5,
+                                        child: Image(
+                                          image: uploadedImage!.image,
+                                          fit: BoxFit.fill, //BoxFit.contain?
+                                          alignment: Alignment.center,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+
+                            if (touched) {
+                              Circle circle = Circle(
+                                  position, DateTime.now().toIso8601String());
+                              await Navigator.push(
+                                  context,
+                                  MaterialPageRoute<void>(
+                                      builder: (BuildContext context) =>
+                                          AddNodePage(circle)));
+                              setState(() {
+                                circles.add(circle);
+                              });
+                            }
                           } else {
                             showOption = true;
-                            setState(() {});
+                            setState(() {
+                              for (var c in circles) {
+                                c.selected = false;
+                              }
+                            });
                           }
                         },
                         child: showOption ? Text('Add Node') : Text('Cancel'),
