@@ -33,14 +33,21 @@ class _AddNodePageState extends State<AddNodePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Marker Information'),
+        iconTheme: IconThemeData(
+          color: Theme.of(context).colorScheme.primary, //change your color here
+        ),
+        title: Text('Marker Information',
+            style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+                fontSize: 25,
+                fontWeight: FontWeight.bold)),
         actions: <Widget>[
           IconButton(
-            iconSize: 25,
+            iconSize: 35,
             padding: EdgeInsets.only(right: 25.0),
             icon: Icon(
-              Icons.download,
-              color: Colors.white,
+              size: 35,
+              Icons.download_rounded,
             ),
             onPressed: () {
               _captureAndSavePng(nameController.text.isNotEmpty

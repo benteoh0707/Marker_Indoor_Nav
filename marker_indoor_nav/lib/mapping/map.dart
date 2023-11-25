@@ -33,6 +33,7 @@ class _EditMapPageState extends State<EditMapPage> {
   bool showOption = true;
 
   final GlobalKey imageKey = GlobalKey();
+  final GlobalKey paddingKey = GlobalKey();
 
   bool dirExists = false;
   dynamic externalDir = '/storage/emulated/0/Download/Qr_code';
@@ -268,22 +269,34 @@ class _EditMapPageState extends State<EditMapPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      appBar:
-          AppBar(title: Text('Edit ${widget.profileName}'), actions: <Widget>[
-        IconButton(
-          iconSize: 25,
-          padding: EdgeInsets.only(right: 25.0),
-          icon: Icon(
-            Icons.save,
-            size: 30,
-            color: Colors.white,
+      appBar: AppBar(
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back),
+            onPressed: () async {
+              await _saveCirclesToFirebase();
+              Navigator.pop(context);
+            },
           ),
-          onPressed: () async {
-            await _saveCirclesToFirebase();
-            Navigator.pop(context);
-          },
-        )
-      ]),
+          title: Text('Edit ${widget.profileName}',
+              style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontSize: 25,
+                  fontWeight: FontWeight.bold)),
+          iconTheme: IconThemeData(
+            color:
+                Theme.of(context).colorScheme.primary, //change your color here
+          ),
+          actions: <Widget>[
+            IconButton(
+              iconSize: 35,
+              padding: EdgeInsets.only(right: 25.0),
+              icon: Icon(
+                Icons.add_photo_alternate_outlined,
+                size: 35,
+              ),
+              onPressed: _uploadImage,
+            )
+          ]),
       body: GestureDetector(
         onScaleUpdate: (ScaleUpdateDetails details) {
           setState(() {
@@ -314,6 +327,7 @@ class _EditMapPageState extends State<EditMapPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
+                  key: paddingKey,
                   padding: const EdgeInsets.all(16.0),
                   child: Row(
                     children: [
@@ -335,13 +349,6 @@ class _EditMapPageState extends State<EditMapPage> {
                           },
                         ),
                       ),
-                      const SizedBox(
-                          width:
-                              10), // A little spacing between the dropdown and the button
-                      ElevatedButton(
-                        onPressed: _uploadImage,
-                        child: const Text('Upload Image'),
-                      ),
                     ],
                   ),
                 ),
@@ -352,7 +359,17 @@ class _EditMapPageState extends State<EditMapPage> {
                       hasImage && uploadedImage != null
                           ? Container(
                               decoration: BoxDecoration(
-                                border: Border.all(color: Colors.red, width: 2),
+                                border: Border(
+                                    top: BorderSide(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
+                                        width: 2),
+                                    bottom: BorderSide(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
+                                        width: 2)),
                               ),
                               key: imageKey,
                               width: MediaQuery.of(context)
@@ -362,7 +379,7 @@ class _EditMapPageState extends State<EditMapPage> {
                                   1.5, // Use half the available height
                               child: Image(
                                 image: uploadedImage!.image,
-                                fit: BoxFit.contain,
+                                fit: BoxFit.fill, //BoxFit.contain?
                                 alignment: Alignment.center,
                               ),
                             )
@@ -370,15 +387,26 @@ class _EditMapPageState extends State<EditMapPage> {
                               width: MediaQuery.of(context).size.width,
                               height: MediaQuery.of(context).size.height / 1.5,
                               decoration: BoxDecoration(
-                                border: Border.all(color: Colors.red, width: 2),
+                                border: Border(
+                                    top: BorderSide(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
+                                        width: 2),
+                                    bottom: BorderSide(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
+                                        width: 2)),
                               ),
-                              child: const Center(
+                              child: Center(
                                 child: Text(
                                   "Please upload a map.",
                                   style: TextStyle(
-                                    color: Colors.black,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
                                     fontSize: 16,
-                                    fontWeight: FontWeight.w600,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ),
@@ -393,21 +421,27 @@ class _EditMapPageState extends State<EditMapPage> {
                     children: [
                       ElevatedButton(
                         onPressed: () async {
-                          final RenderBox renderBox = imageKey.currentContext!
-                              .findRenderObject() as RenderBox;
-                          final position = renderBox.localToGlobal(Offset.zero);
-                          Circle circle = Circle(
-                              position, DateTime.now().toIso8601String());
-                          await Navigator.push(
-                              context,
-                              MaterialPageRoute<void>(
-                                  builder: (BuildContext context) =>
-                                      AddNodePage(circle)));
-                          setState(() {
-                            circles.add(circle);
-                          });
+                          if (showOption) {
+                            final RenderBox renderBox = imageKey.currentContext!
+                                .findRenderObject() as RenderBox;
+                            final position = renderBox.localToGlobal(Offset
+                                .zero); //todo: locate new node position by touching screen
+                            Circle circle = Circle(
+                                position, DateTime.now().toIso8601String());
+                            await Navigator.push(
+                                context,
+                                MaterialPageRoute<void>(
+                                    builder: (BuildContext context) =>
+                                        AddNodePage(circle)));
+                            setState(() {
+                              circles.add(circle);
+                            });
+                          } else {
+                            showOption = true;
+                            setState(() {});
+                          }
                         },
-                        child: const Text('Add Node'),
+                        child: showOption ? Text('Add Node') : Text('Cancel'),
                       ),
                       ElevatedButton(
                         onPressed: () {
@@ -453,7 +487,10 @@ class _EditMapPageState extends State<EditMapPage> {
                 );
               }
 
-              return Divider();
+              return Divider(
+                color: Colors.transparent,
+                thickness: 0,
+              );
             }),
             ...circles.map((start) {
               for (var dest_id in start.connected_nodes.keys) {
@@ -461,7 +498,8 @@ class _EditMapPageState extends State<EditMapPage> {
                     circles.firstWhere((element) => element.id == dest_id);
                 double box_width = (start.position.dx - end.position.dx).abs();
                 double box_height = (start.position.dy - end.position.dy).abs();
-                double edge_node_radius = 15.0;
+                double edge_node_radius =
+                    double.parse(max(start.size, end.size).toString()) / 2;
                 return Positioned(
                   left: (box_width / 2) +
                       min(start.position.dx, end.position.dx) +
@@ -477,6 +515,7 @@ class _EditMapPageState extends State<EditMapPage> {
                       width: edge_node_radius,
                       height: edge_node_radius,
                       decoration: BoxDecoration(
+                        border: Border.all(color: Colors.red, width: 3),
                         shape: BoxShape.circle,
                         color: Colors.blue,
                       ),
@@ -485,7 +524,10 @@ class _EditMapPageState extends State<EditMapPage> {
                 );
               }
 
-              return Divider();
+              return Divider(
+                color: Colors.transparent,
+                thickness: 0,
+              );
             }),
             ...circles.map((circle) {
               return Positioned(
@@ -507,13 +549,43 @@ class _EditMapPageState extends State<EditMapPage> {
                       });
                     }
                   },
+                  onLongPress: () {
+                    setState(() {
+                      if (circle.selected == false) {
+                        for (var c in circles) {
+                          c.selected = false;
+                        }
+                        circle.selected = true;
+                      } else {
+                        circle.selected = false;
+                      }
+                    });
+                  },
                   onPanUpdate: (details) {
                     if (circle.selected == true) {
                       setState(() {
-                        circle.position = Offset(
-                          circle.position.dx + details.delta.dx,
-                          circle.position.dy + details.delta.dy,
-                        );
+                        if (paddingKey.currentContext!.size!.height >
+                            (circle.position.dy + details.delta.dy)) {
+                          circle.position = Offset(
+                            circle.position.dx + details.delta.dx,
+                            paddingKey.currentContext!.size!.height,
+                          );
+                        } else if ((circle.position.dy + details.delta.dy) >
+                            (imageKey.currentContext!.size!.height +
+                                paddingKey.currentContext!.size!.height -
+                                circle.size)) {
+                          circle.position = Offset(
+                            circle.position.dx + details.delta.dx,
+                            imageKey.currentContext!.size!.height +
+                                paddingKey.currentContext!.size!.height -
+                                circle.size,
+                          );
+                        } else {
+                          circle.position = Offset(
+                            circle.position.dx + details.delta.dx,
+                            circle.position.dy + details.delta.dy,
+                          );
+                        }
                       });
                     }
                   },
@@ -590,7 +662,7 @@ class drawEdges extends CustomPainter {
     var paint = Paint()
       ..color = Colors.red
       ..style = PaintingStyle.fill
-      ..strokeWidth = 5;
+      ..strokeWidth = double.parse(max(start.size, end.size).toString()) / 4;
 
     canvas.drawLine(
         Offset(start.position.dx + start.size / 2,

@@ -19,12 +19,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Future<List<Map<String, dynamic>>> fetchProfiles() async {
     QuerySnapshot snapshot = await _firestore.collection('profiles').get();
 
-    return snapshot.docs
-        .map((doc) => doc.data() as Map<String, dynamic>)
-        .toList();
+    return snapshot.docs.map((doc) {
+      final doc_data = doc.data() as Map<String, dynamic>;
+      doc_data['id'] = doc.id;
+      return doc_data;
+    }).toList();
   }
 
-  void _createProfile(String profileName, String numOfFloors) async {
+  Future<bool> _createProfile(
+      String profileName, String numOfFloors, BuildContext context) async {
     int numberOfFloors;
 
     // Ensure the profileName isn't empty
@@ -32,17 +35,33 @@ class _EditProfilePageState extends State<EditProfilePage> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Please enter a profile name.'),
       ));
-      return;
+      return false;
     }
 
-    DocumentReference doc_ref =
-        _firestore.collection("profiles").doc(profileName);
-    if (doc_ref.id.contains(profileName)) {
+    if (numOfFloors.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Profile existed.'),
+        content: Text('Please enter the number of floors.'),
       ));
-      return;
+      return false;
     }
+    bool profileExisted = false;
+
+    await _firestore
+        .collection("profiles")
+        .where("profileName", isEqualTo: profileName)
+        .get()
+        .then(
+      (querySnapshot) {
+        if (querySnapshot.docs.isNotEmpty) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text('Profile existed.')));
+          profileExisted = true;
+        }
+      },
+      onError: (e) => print("Error completing: $e"),
+    );
+
+    if (profileExisted) return false;
 
     try {
       numberOfFloors = int.parse(numOfFloors);
@@ -50,19 +69,19 @@ class _EditProfilePageState extends State<EditProfilePage> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Please enter a valid number for floors.'),
       ));
-      return;
+      return false;
     }
 
     if (!(numberOfFloors > 0)) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Please enter a valid number for floors.'),
       ));
-      return;
+      return false;
     }
 
     try {
       // Using Firestore
-      await _firestore.collection("profiles").doc(profileName).set({
+      await _firestore.collection("profiles").add({
         'profileName': profileName,
         'numberOfFloors': numberOfFloors,
         'timestamp': FieldValue.serverTimestamp(),
@@ -71,11 +90,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Profile Created.'),
       ));
+      return true;
     } catch (error) {
       print("Error adding document: $error");
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('An error occurred. Please try again.'),
       ));
+      return false;
     }
   }
 
@@ -87,52 +108,68 @@ class _EditProfilePageState extends State<EditProfilePage> {
     showDialog(
         context: context,
         builder: (BuildContext context) {
-          return AlertDialog(
-            title: Text('Create Profile'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: profileNameController,
-                  decoration: InputDecoration(labelText: 'Enter Profile Name'),
+          return ScaffoldMessenger(
+            child: Builder(builder: (context) {
+              return Scaffold(
+                backgroundColor: Colors.transparent,
+                body: AlertDialog(
+                  title: Text(
+                    'Create Profile',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: profileNameController,
+                        decoration:
+                            InputDecoration(labelText: 'Enter Profile Name'),
+                      ),
+                      SizedBox(
+                        height: 20,
+                      ),
+                      TextField(
+                        controller: numberOfFloorsController,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: <TextInputFormatter>[
+                          FilteringTextInputFormatter.digitsOnly
+                        ],
+                        decoration:
+                            InputDecoration(labelText: 'Enter Number of Floor'),
+                      ),
+                      SizedBox(
+                        height: 20,
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: Text('Cancel')),
+                          TextButton(
+                              onPressed: () async {
+                                if (await _createProfile(
+                                    profileNameController.text.trim(),
+                                    numberOfFloorsController.text.trim(),
+                                    context)) {
+                                  Navigator.of(context).pop();
+                                }
+                                setState(() {});
+                              },
+                              child: Text('Save')),
+                        ],
+                      )
+                    ],
+                  ),
                 ),
-                SizedBox(
-                  height: 20,
-                ),
-                TextField(
-                  controller: numberOfFloorsController,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: <TextInputFormatter>[
-                    FilteringTextInputFormatter.digitsOnly
-                  ],
-                  decoration:
-                      InputDecoration(labelText: 'Enter Number of Floor'),
-                ),
-                SizedBox(
-                  height: 20,
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                        onPressed: () {
-                          setState(() {
-                            _createProfile(profileNameController.text.trim(),
-                                numberOfFloorsController.text.trim());
-                          });
-                          Navigator.of(context).pop();
-                        },
-                        child: Text('Save')),
-                  ],
-                )
-              ],
-            ),
+              );
+            }),
           );
         });
   }
 
-  deleteProfile(String profName, int NoFloor) async {
-    await _firestore.collection("profiles").doc(profName).delete();
+  deleteProfile(String id, String profName, int NoFloor) async {
+    await _firestore.collection("profiles").doc(id).delete();
     for (int i = 1; i <= NoFloor; i++) {
       _firestore
           .collection('maps')
@@ -166,24 +203,133 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
+  editProfile(String id, String profName) {
+    final TextEditingController profileNameController =
+        TextEditingController(text: profName);
+    bool exit = false;
+
+    showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return ScaffoldMessenger(
+            child: Builder(builder: (context) {
+              return Scaffold(
+                backgroundColor: Colors.transparent,
+                body: AlertDialog(
+                  title: Text(
+                    'Edit Profile',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: profileNameController,
+                        decoration:
+                            InputDecoration(labelText: 'Enter Profile Name'),
+                      ),
+                      SizedBox(
+                        height: 20,
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: Text('Cancel')),
+                          TextButton(
+                              onPressed: () async {
+                                if (profName == profileNameController.text) {
+                                  exit = true;
+                                } else if (profileNameController.text.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                          content: Text(
+                                              'Please enter a profile name.')));
+                                } else {
+                                  await _firestore
+                                      .collection("profiles")
+                                      .where("profileName",
+                                          isEqualTo: profileNameController.text)
+                                      .get()
+                                      .then(
+                                    (querySnapshot) async {
+                                      if (querySnapshot.docs.isNotEmpty) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(SnackBar(
+                                                content: Text(
+                                                    'Profile name existed.')));
+                                      } else {
+                                        await _firestore
+                                            .collection('profiles')
+                                            .doc(id)
+                                            .update({
+                                          "profileName":
+                                              profileNameController.text
+                                        });
+                                        exit = true;
+                                      }
+                                    },
+                                    onError: (e) =>
+                                        print("Error completing: $e"),
+                                  );
+                                }
+
+                                setState(() {});
+                                if (exit) Navigator.of(context).pop();
+                              },
+                              child: Text('Save')),
+                        ],
+                      )
+                    ],
+                  ),
+                ),
+              );
+            }),
+          );
+        });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Building Profile'), actions: <Widget>[
-        IconButton(
-          iconSize: 25,
-          padding: EdgeInsets.only(right: 25.0),
-          icon: Icon(
-            Icons.add,
-            size: 30,
-            color: Colors.white,
+      appBar: AppBar(
+        iconTheme: IconThemeData(
+          color: Theme.of(context).colorScheme.primary, //change your color here
+        ),
+        title: Text('Building Profile',
+            style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+                fontSize: 25,
+                fontWeight: FontWeight.bold)),
+        //elevation: 20.0,
+      ),
+      floatingActionButton: Hero(
+        tag: 'back',
+        child: Container(
+          height: 70,
+          width: 70,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Theme.of(context).colorScheme.primary,
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.grey,
+                blurRadius: 4,
+                offset: Offset(0, 5), // Shadow position
+              ),
+            ],
           ),
-          onPressed: () {
-            createProfile();
-            setState(() {});
-          },
-        )
-      ]),
+          child: IconButton(
+            onPressed: createProfile,
+            icon: const Icon(
+              Icons.add,
+              color: Colors.white,
+              size: 35,
+            ),
+          ),
+        ),
+      ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: fetchProfiles(),
         builder: (context, snapshot) {
@@ -206,8 +352,19 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       icon: Icons.delete,
                       label: 'Delete',
                       onPressed: (context) async {
-                        await deleteProfile(profile?['profileName'],
+                        await deleteProfile(
+                            profile?['id'],
+                            profile?['profileName'],
                             profile?['numberOfFloors']);
+                        setState(() {});
+                      },
+                    ),
+                    SlidableAction(
+                      backgroundColor: Colors.green,
+                      icon: Icons.edit,
+                      label: 'Edit',
+                      onPressed: (context) async {
+                        editProfile(profile?['id'], profile?['profileName']);
                         setState(() {});
                       },
                     ),
