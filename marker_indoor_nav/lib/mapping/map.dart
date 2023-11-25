@@ -204,7 +204,6 @@ class _EditMapPageState extends State<EditMapPage> {
   showEdgeOptions(Circle start, Circle end) {
     TextEditingController distanceController =
         TextEditingController(text: start.connected_nodes[end.id].toString());
-
     showModalBottomSheet(
       context: context,
       builder: (BuildContext context) {
@@ -216,34 +215,66 @@ class _EditMapPageState extends State<EditMapPage> {
               title: Text('Distance'),
               onTap: () {
                 Navigator.pop(context);
-                // Set circle to moving state, this will allow user to drag the circle
                 showDialog(
                     context: context,
                     builder: (BuildContext context) {
-                      return AlertDialog(
-                        title: Text('Distance'),
-                        content: TextField(
-                          controller: distanceController,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: <TextInputFormatter>[
-                            FilteringTextInputFormatter.digitsOnly
-                          ],
-                          decoration:
-                              InputDecoration(hintText: 'Enter Distance'),
-                        ),
-                        actions: [
-                          TextButton(
-                              onPressed: () {
-                                setState(() {
-                                  start.connected_nodes[end.id] =
-                                      num.parse(distanceController.text);
-                                  end.connected_nodes[start.id] =
-                                      num.parse(distanceController.text);
-                                });
-                                Navigator.of(context).pop();
-                              },
-                              child: Text('Save'))
-                        ],
+                      return ScaffoldMessenger(
+                        child: Builder(builder: (context) {
+                          return Scaffold(
+                            backgroundColor: Colors.transparent,
+                            body: AlertDialog(
+                              title: Text('Distance'),
+                              content: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  TextField(
+                                    controller: distanceController,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: <TextInputFormatter>[
+                                      FilteringTextInputFormatter.digitsOnly
+                                    ],
+                                    decoration: InputDecoration(
+                                        hintText: 'Enter Distance'),
+                                  ),
+                                  SizedBox(
+                                    height: 10,
+                                  ),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      TextButton(
+                                          onPressed: () =>
+                                              Navigator.of(context).pop(),
+                                          child: Text('Cancel')),
+                                      TextButton(
+                                          onPressed: () {
+                                            if (distanceController
+                                                .text.isEmpty) {
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(SnackBar(
+                                                content: Text(
+                                                    'Please enter a number.'),
+                                              ));
+                                            }
+                                            setState(() {
+                                              start.connected_nodes[end.id] =
+                                                  num.parse(
+                                                      distanceController.text);
+                                              end.connected_nodes[start.id] =
+                                                  num.parse(
+                                                      distanceController.text);
+                                            });
+                                            Navigator.of(context).pop();
+                                          },
+                                          child: Text('Save')),
+                                    ],
+                                  )
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
                       );
                     });
               },

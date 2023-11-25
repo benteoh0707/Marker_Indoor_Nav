@@ -138,7 +138,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                             InputDecoration(labelText: 'Enter Number of Floor'),
                       ),
                       SizedBox(
-                        height: 20,
+                        height: 10,
                       ),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -229,7 +229,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                             InputDecoration(labelText: 'Enter Profile Name'),
                       ),
                       SizedBox(
-                        height: 20,
+                        height: 10,
                       ),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
