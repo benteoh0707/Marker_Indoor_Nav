@@ -41,7 +41,7 @@ class _EditMapPageState extends State<EditMapPage> {
   List<Circle> circles = [];
   List<String> circles_id = [];
 
-  static const double MIN_SIZE = 10.0; // Minimum circle size
+  static const double MIN_SIZE = 16.0; // Minimum circle size
   static const double MAX_SIZE = 100.0; // Maximum circle size
   static const double SCALE_MULTIPLIER =
       0.05; // Adjust this value to control the scaling effect
@@ -551,28 +551,28 @@ class _EditMapPageState extends State<EditMapPage> {
               for (var dest_id in start.connected_nodes.keys) {
                 Circle end =
                     circles.firstWhere((element) => element.id == dest_id);
-                double box_width = (start.position.dx - end.position.dx).abs();
-                double box_height = (start.position.dy - end.position.dy).abs();
-                double edge_node_radius =
-                    double.parse(max(start.size, end.size).toString()) / 2;
+
+                Offset start_mid = Offset(start.position.dx + start.size / 2,
+                    start.position.dy + start.size / 2);
+                Offset end_mid = Offset(end.position.dx + end.size / 2,
+                    end.position.dy + end.size / 2);
+                double box_width = (start_mid.dx - end_mid.dx).abs();
+                double box_height = (start_mid.dy - end_mid.dy).abs();
+
                 return Positioned(
-                  left: (box_width / 2) +
-                      min(start.position.dx, end.position.dx) +
-                      edge_node_radius / 2,
-                  top: (box_height / 2) +
-                      min(start.position.dy, end.position.dy) +
-                      edge_node_radius / 2,
+                  left: (box_width / 2) + min(start_mid.dx, end_mid.dx) - 8,
+                  top: (box_height / 2) + min(start_mid.dy, end_mid.dy) - 8,
                   child: GestureDetector(
                     onTap: () {
                       showEdgeOptions(start, end);
                     },
                     child: Container(
-                      width: edge_node_radius,
-                      height: edge_node_radius,
+                      width: 16,
+                      height: 16,
                       decoration: BoxDecoration(
                         border: Border.all(color: Colors.red, width: 3),
                         shape: BoxShape.circle,
-                        color: Colors.blue,
+                        color: Colors.white,
                       ),
                     ),
                   ),
@@ -717,7 +717,7 @@ class drawEdges extends CustomPainter {
     var paint = Paint()
       ..color = Colors.red
       ..style = PaintingStyle.fill
-      ..strokeWidth = double.parse(max(start.size, end.size).toString()) / 4;
+      ..strokeWidth = 5;
 
     canvas.drawLine(
         Offset(start.position.dx + start.size / 2,
