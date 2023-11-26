@@ -76,14 +76,14 @@ class _AddNodePageState extends State<AddNodePage> {
                 TextField(
                   controller: nameController,
                   decoration: const InputDecoration(
-                    hintText: 'Name',
+                    labelText: 'Name',
                   ),
                 ),
                 const SizedBox(height: 10),
                 TextField(
                     controller: descriptionController,
                     decoration: const InputDecoration(
-                      hintText: 'Description',
+                      labelText: 'Description',
                     )),
                 const SizedBox(height: 10),
                 Row(
@@ -97,12 +97,13 @@ class _AddNodePageState extends State<AddNodePage> {
                             content: Text('Please enter a name.'),
                           ));
                         } else {
-                          circle.name = nameController.text.trim();
-                          circle.description =
-                              descriptionController.text.trim();
-                          Navigator.pop(context);
+                          setState(() {
+                            circle.name = nameController.text.trim();
+                            circle.description =
+                                descriptionController.text.trim();
+                            Navigator.pop(context);
+                          });
                         }
-                        setState(() {});
                       },
                     ),
                   ],

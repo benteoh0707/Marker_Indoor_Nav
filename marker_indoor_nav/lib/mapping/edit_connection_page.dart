@@ -22,116 +22,110 @@ class _EditConnectPageState extends State<EditConnectPage> {
         text: widget.start.connected_nodes[end.id]['distance'].toString());
     String? selectedItem = widget.start.connected_nodes[end.id]['direction'];
     List<String> directions = ['Left', 'Right', 'Back', 'Front'];
+    bool validate = false;
     return showDialog(
         context: context,
         builder: (BuildContext context) {
           return StatefulBuilder(builder: (context, setState) {
-            return ScaffoldMessenger(
-              child: Builder(builder: (context) {
-                return Scaffold(
-                  backgroundColor: Colors.transparent,
-                  body: AlertDialog(
-                    title: Text('Connection Details',
+            return AlertDialog(
+              title: Text('Connection Details',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                  )),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Distance',
                         style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                        )),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Distance',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w400, fontSize: 17),
-                            ),
-                            SizedBox(
-                              width: 20,
-                            ),
-                            Expanded(
-                              child: TextField(
-                                controller: distanceController,
-                                keyboardType: TextInputType.number,
-                                inputFormatters: <TextInputFormatter>[
-                                  FilteringTextInputFormatter.digitsOnly
-                                ],
-                                decoration:
-                                    InputDecoration(hintText: 'Enter Distance'),
-                              ),
-                            ),
+                            fontWeight: FontWeight.w400, fontSize: 17),
+                      ),
+                      SizedBox(
+                        width: 20,
+                      ),
+                      Expanded(
+                        child: TextField(
+                          controller: distanceController,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: <TextInputFormatter>[
+                            FilteringTextInputFormatter.digitsOnly
                           ],
+                          decoration: InputDecoration(
+                              hintText: 'Enter Distance',
+                              errorText: validate
+                                  // ignore: dead_code
+                                  ? "Value Can't Be Empty"
+                                  : null),
                         ),
-                        SizedBox(
-                          height: 20,
-                        ),
-                        Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('Direction',
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.w400,
-                                      fontSize: 17)),
-                              SizedBox(
-                                width: 20,
-                              ),
-                              Expanded(
-                                child: DropdownButton(
-                                  value:
-                                      selectedItem == '-' ? null : selectedItem,
-                                  hint: Text('Select a direction'),
-                                  onChanged: (newValue) {
-                                    setState(() {
-                                      selectedItem = newValue;
-                                    });
-                                  },
-                                  items: directions.map((String value) {
-                                    return DropdownMenuItem<String>(
-                                      value: value,
-                                      child: Text(value),
-                                    );
-                                  }).toList(),
-                                ),
-                              ),
-                            ]),
-                        SizedBox(
-                          height: 10,
-                        ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            TextButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: Text('Cancel')),
-                            TextButton(
-                                onPressed: () {
-                                  if (distanceController.text.isEmpty) {
-                                    ScaffoldMessenger.of(context)
-                                        .showSnackBar(SnackBar(
-                                      content: Text('Please enter a number.'),
-                                    ));
-                                  } else {
-                                    setState(() {
-                                      widget.start.connected_nodes[end.id]
-                                              ['distance'] =
-                                          num.parse(distanceController.text);
-                                      end.connected_nodes[widget.start.id]
-                                              ['distance'] =
-                                          num.parse(distanceController.text);
-                                      widget.start.connected_nodes[end.id]
-                                          ['direction'] = selectedItem;
-                                    });
-                                    Navigator.of(context).pop();
-                                  }
-                                },
-                                child: Text('Save')),
-                          ],
-                        )
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                );
-              }),
+                  SizedBox(
+                    height: 20,
+                  ),
+                  Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Direction',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w400, fontSize: 17)),
+                        SizedBox(
+                          width: 20,
+                        ),
+                        Expanded(
+                          child: DropdownButton(
+                            value: selectedItem == '-' ? null : selectedItem,
+                            hint: Text('Select a direction'),
+                            onChanged: (newValue) {
+                              setState(() {
+                                selectedItem = newValue;
+                              });
+                            },
+                            items: directions.map((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text(
+                                  value,
+                                  style: TextStyle(fontWeight: FontWeight.w400),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ]),
+                  SizedBox(
+                    height: 10,
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                          onPressed: () {
+                            setState(() {
+                              if (distanceController.text.isEmpty) {
+                                validate = distanceController.text.isEmpty;
+                              } else {
+                                widget.start.connected_nodes[end.id]
+                                        ['distance'] =
+                                    num.parse(distanceController.text);
+                                end.connected_nodes[widget.start.id]
+                                        ['distance'] =
+                                    num.parse(distanceController.text);
+                                widget.start.connected_nodes[end.id]
+                                    ['direction'] = selectedItem;
+
+                                Navigator.of(context).pop();
+                              }
+                            });
+                          },
+                          child: Text('Save')),
+                    ],
+                  )
+                ],
+              ),
             );
           });
         });
@@ -171,7 +165,7 @@ class _EditConnectPageState extends State<EditConnectPage> {
                 ),
               ]),
               child: ListTile(
-                title: Text(end.name,
+                title: Text(end.name ?? '',
                     style: TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

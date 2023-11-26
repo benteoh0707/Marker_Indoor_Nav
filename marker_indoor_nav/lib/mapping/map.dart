@@ -222,6 +222,7 @@ class _EditMapPageState extends State<EditMapPage> {
   showEdgeOptions(Circle start, Circle end) {
     TextEditingController distanceController = TextEditingController(
         text: start.connected_nodes[end.id]['distance'].toString());
+    bool validate = false;
     showModalBottomSheet(
       context: context,
       builder: (BuildContext context) {
@@ -236,66 +237,60 @@ class _EditMapPageState extends State<EditMapPage> {
                 showDialog(
                     context: context,
                     builder: (BuildContext context) {
-                      return ScaffoldMessenger(
-                        child: Builder(builder: (context) {
-                          return Scaffold(
-                            backgroundColor: Colors.transparent,
-                            body: AlertDialog(
-                              title: Text('Distance'),
-                              content: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  TextField(
-                                    controller: distanceController,
-                                    keyboardType: TextInputType.number,
-                                    inputFormatters: <TextInputFormatter>[
-                                      FilteringTextInputFormatter.digitsOnly
-                                    ],
-                                    decoration: InputDecoration(
-                                        hintText: 'Enter Distance'),
-                                  ),
-                                  SizedBox(
-                                    height: 10,
-                                  ),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      TextButton(
-                                          onPressed: () =>
-                                              Navigator.of(context).pop(),
-                                          child: Text('Cancel')),
-                                      TextButton(
-                                          onPressed: () {
-                                            if (distanceController
-                                                .text.isEmpty) {
-                                              ScaffoldMessenger.of(context)
-                                                  .showSnackBar(SnackBar(
-                                                content: Text(
-                                                    'Please enter a number.'),
-                                              ));
-                                            }
-                                            setState(() {
-                                              start.connected_nodes[end.id]
-                                                      ['distance'] =
-                                                  num.parse(
-                                                      distanceController.text);
-                                              end.connected_nodes[start.id]
-                                                      ['distance'] =
-                                                  num.parse(
-                                                      distanceController.text);
-                                            });
-                                            Navigator.of(context).pop();
-                                          },
-                                          child: Text('Save')),
-                                    ],
-                                  )
+                      return StatefulBuilder(builder: (context, setState) {
+                        return AlertDialog(
+                          title: Text(
+                            'Distance',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              TextField(
+                                controller: distanceController,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: <TextInputFormatter>[
+                                  FilteringTextInputFormatter.digitsOnly
                                 ],
+                                decoration: InputDecoration(
+                                    labelText: 'Enter Distance',
+                                    errorText: validate
+                                        // ignore: dead_code
+                                        ? "Value Can't Be Empty"
+                                        : null),
                               ),
-                            ),
-                          );
-                        }),
-                      );
+                              SizedBox(
+                                height: 10,
+                              ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  TextButton(
+                                      onPressed: () {
+                                        setState(() {
+                                          if (distanceController.text.isEmpty) {
+                                            validate =
+                                                distanceController.text.isEmpty;
+                                          } else {
+                                            start.connected_nodes[end.id]
+                                                    ['distance'] =
+                                                num.parse(
+                                                    distanceController.text);
+                                            end.connected_nodes[start.id]
+                                                    ['distance'] =
+                                                num.parse(
+                                                    distanceController.text);
+                                            Navigator.of(context).pop();
+                                          }
+                                        });
+                                      },
+                                      child: Text('Save')),
+                                ],
+                              )
+                            ],
+                          ),
+                        );
+                      });
                     });
               },
             ),
@@ -534,9 +529,11 @@ class _EditMapPageState extends State<EditMapPage> {
                                   MaterialPageRoute<void>(
                                       builder: (BuildContext context) =>
                                           AddNodePage(circle)));
-                              setState(() {
-                                circles.add(circle);
-                              });
+                              if (circle.name!.isNotEmpty) {
+                                setState(() {
+                                  circles.add(circle);
+                                });
+                              }
                             }
                           } else {
                             showOption = true;
@@ -728,13 +725,12 @@ class Circle {
   final String id;
   bool? selected;
   double size; // New property for size
-  String name;
+  String? name;
   String? description;
   DateTime? lastTriggered;
   Map<String, dynamic> connected_nodes = {};
 
-  Circle(this.position, this.id,
-      {this.name = '', this.size = 30.0, this.selected = false});
+  Circle(this.position, this.id, {this.size = 30.0, this.selected = false});
 
   Map<String, dynamic> toJson() {
     return {
