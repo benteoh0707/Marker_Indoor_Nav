@@ -92,12 +92,17 @@ class _AddNodePageState extends State<AddNodePage> {
                     TextButton(
                       child: const Text('Save'),
                       onPressed: () {
-                        setState(() {
+                        if (nameController.text.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text('Please enter a name.'),
+                          ));
+                        } else {
                           circle.name = nameController.text.trim();
                           circle.description =
                               descriptionController.text.trim();
-                        });
-                        Navigator.pop(context);
+                          Navigator.pop(context);
+                        }
+                        setState(() {});
                       },
                     ),
                   ],

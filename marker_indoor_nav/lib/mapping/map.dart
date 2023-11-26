@@ -11,6 +11,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:marker_indoor_nav/mapping/add_node_page.dart';
 import 'dart:convert';
 
+import 'package:marker_indoor_nav/mapping/edit_connection_page.dart';
+
 // Firebase setup and function
 
 class EditMapPage extends StatefulWidget {
@@ -179,6 +181,22 @@ class _EditMapPageState extends State<EditMapPage> {
                 },
               ),
               ListTile(
+                leading: const Icon(Icons.social_distance),
+                title: const Text('Marker Connection'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                          builder: (BuildContext context) => EditConnectPage(
+                                start: circle,
+                                circles: circles,
+                              )));
+                  setState(
+                      () {}); // Use your existing method to show the prompt
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.delete),
                 title: const Text('Delete'),
                 onTap: () async {
@@ -202,8 +220,8 @@ class _EditMapPageState extends State<EditMapPage> {
   }
 
   showEdgeOptions(Circle start, Circle end) {
-    TextEditingController distanceController =
-        TextEditingController(text: start.connected_nodes[end.id].toString());
+    TextEditingController distanceController = TextEditingController(
+        text: start.connected_nodes[end.id]['distance'].toString());
     showModalBottomSheet(
       context: context,
       builder: (BuildContext context) {
@@ -258,10 +276,12 @@ class _EditMapPageState extends State<EditMapPage> {
                                               ));
                                             }
                                             setState(() {
-                                              start.connected_nodes[end.id] =
+                                              start.connected_nodes[end.id]
+                                                      ['distance'] =
                                                   num.parse(
                                                       distanceController.text);
-                                              end.connected_nodes[start.id] =
+                                              end.connected_nodes[start.id]
+                                                      ['distance'] =
                                                   num.parse(
                                                       distanceController.text);
                                             });
@@ -544,11 +564,17 @@ class _EditMapPageState extends State<EditMapPage> {
                                     (element) => element.id == circles_id[i]);
                                 if (i + 1 != circles_id.length) {
                                   current_circle
-                                      .connected_nodes[circles_id[i + 1]] = 0;
+                                      .connected_nodes[circles_id[i + 1]] = {
+                                    'distance': 0,
+                                    'direction': '-'
+                                  };
                                 }
                                 if (i != 0) {
                                   current_circle
-                                      .connected_nodes[circles_id[i - 1]] = 0;
+                                      .connected_nodes[circles_id[i - 1]] = {
+                                    'distance': 0,
+                                    'direction': '-'
+                                  };
                                 }
                               }
                               circles_id = [];
@@ -702,12 +728,13 @@ class Circle {
   final String id;
   bool? selected;
   double size; // New property for size
-  String? name;
+  String name;
   String? description;
   DateTime? lastTriggered;
   Map<String, dynamic> connected_nodes = {};
 
-  Circle(this.position, this.id, {this.size = 30.0, this.selected = false});
+  Circle(this.position, this.id,
+      {this.name = '', this.size = 30.0, this.selected = false});
 
   Map<String, dynamic> toJson() {
     return {
