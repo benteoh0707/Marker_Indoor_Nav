@@ -60,7 +60,7 @@ class _EditMapPageState extends State<EditMapPage> {
     final circlesJson = circles.map((circle) => circle.toJson()).toList();
     final circlesString = jsonEncode(circlesJson);
 
-    final mapId = '${widget.profileName}_$selectedFloor';
+    final mapId = '${widget.profileName} $selectedFloor';
 
     final ref = FirebaseFirestore.instance.collection('maps').doc(mapId);
 
@@ -68,7 +68,7 @@ class _EditMapPageState extends State<EditMapPage> {
   }
 
   Future<void> _loadCirclesFromFirebase() async {
-    final mapId = '${widget.profileName}_$selectedFloor';
+    final mapId = '${widget.profileName} $selectedFloor';
     final doc =
         await FirebaseFirestore.instance.collection('maps').doc(mapId).get();
 
@@ -177,7 +177,9 @@ class _EditMapPageState extends State<EditMapPage> {
                       context,
                       MaterialPageRoute<void>(
                           builder: (BuildContext context) => AddNodePage(
-                              circle))); // Use your existing method to show the prompt
+                              circle: circle,
+                              location:
+                                  '${widget.profileName} $selectedFloor'))); // Use your existing method to show the prompt
                 },
               ),
               ListTile(
@@ -536,7 +538,10 @@ class _EditMapPageState extends State<EditMapPage> {
                                   context,
                                   MaterialPageRoute<void>(
                                       builder: (BuildContext context) =>
-                                          AddNodePage(circle)));
+                                          AddNodePage(
+                                              circle: circle,
+                                              location:
+                                                  '${widget.profileName} $selectedFloor')));
                               if (circle.name!.isNotEmpty) {
                                 setState(() {
                                   circles.add(circle);

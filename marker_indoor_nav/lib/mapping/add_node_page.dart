@@ -11,7 +11,8 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 class AddNodePage extends StatefulWidget {
   Circle circle;
-  AddNodePage(this.circle);
+  String location;
+  AddNodePage({required this.circle, required this.location});
 
   @override
   State<AddNodePage> createState() => _AddNodePageState();
@@ -66,7 +67,7 @@ class _AddNodePageState extends State<AddNodePage> {
                 RepaintBoundary(
                     key: _qrkey,
                     child: QrImageView(
-                      data: circle.id,
+                      data: '${widget.location}_${circle.id}',
                       size: 200,
                       backgroundColor: Colors.white,
                     )),
