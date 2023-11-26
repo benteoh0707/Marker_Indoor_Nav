@@ -137,12 +137,30 @@ class _EditConnectPageState extends State<EditConnectPage> {
     final val = widget.start.connected_nodes.values.toList();
     return Scaffold(
         appBar: AppBar(
-          title: Text('Marker Connection',
-              style: TextStyle(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontSize: 25,
-                  fontWeight: FontWeight.bold)),
-        ),
+            title: Text('Marker Connection',
+                style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontSize: 25,
+                    fontWeight: FontWeight.bold)),
+            iconTheme: IconThemeData(
+              color: Theme.of(context)
+                  .colorScheme
+                  .primary, //change your color here
+            ),
+            actions: <Widget>[
+              IconButton(
+                iconSize: 35,
+                padding: EdgeInsets.only(right: 25.0),
+                icon: Icon(
+                  Icons.add,
+                  size: 35,
+                ),
+                onPressed: () {
+                  widget.start.selected = true;
+                  Navigator.pop(context, false);
+                },
+              )
+            ]),
         body: ListView.builder(
           itemCount: widget.start.connected_nodes.length,
           itemBuilder: (BuildContext context, int index) {

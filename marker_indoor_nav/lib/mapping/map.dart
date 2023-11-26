@@ -185,15 +185,21 @@ class _EditMapPageState extends State<EditMapPage> {
                 title: const Text('Marker Connection'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await Navigator.push(
+                  final result = await Navigator.push(
                       context,
                       MaterialPageRoute<void>(
-                          builder: (BuildContext context) => EditConnectPage(
-                                start: circle,
-                                circles: circles,
-                              )));
-                  setState(
-                      () {}); // Use your existing method to show the prompt
+                        builder: (BuildContext context) => EditConnectPage(
+                          start: circle,
+                          circles: circles,
+                        ),
+                      )) as bool;
+
+                  setState(() {
+                    if (!result) {
+                      showOption = result;
+                      circles_id.add(circle.id);
+                    }
+                  }); // Use your existing method to show the prompt
                 },
               ),
               ListTile(
@@ -340,7 +346,7 @@ class _EditMapPageState extends State<EditMapPage> {
                 Icons.add_photo_alternate_outlined,
                 size: 35,
               ),
-              onPressed: _uploadImage,
+              onPressed: showOption ? _uploadImage : null,
             )
           ]),
       body: GestureDetector(
@@ -387,12 +393,14 @@ class _EditMapPageState extends State<EditMapPage> {
                               child: Text(value),
                             );
                           }).toList(),
-                          onChanged: (newValue) {
-                            setState(() {
-                              selectedFloor = newValue;
-                            });
-                            _checkAndDownloadImage();
-                          },
+                          onChanged: showOption
+                              ? (newValue) {
+                                  setState(() {
+                                    selectedFloor = newValue;
+                                  });
+                                  _checkAndDownloadImage();
+                                }
+                              : null,
                         ),
                       ),
                     ],
@@ -541,6 +549,7 @@ class _EditMapPageState extends State<EditMapPage> {
                               for (var c in circles) {
                                 c.selected = false;
                               }
+                              circles_id = [];
                             });
                           }
                         },
