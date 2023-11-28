@@ -53,7 +53,6 @@ class _EditMapPageState extends State<EditMapPage> {
     super.initState();
     _generateFloorOptions(widget.numberOfFloors);
     _checkAndDownloadImage();
-    _loadCirclesFromFirebase();
   }
 
   Future<void> _saveCirclesToFirebase() async {
@@ -139,7 +138,7 @@ class _EditMapPageState extends State<EditMapPage> {
       });
     }
 
-    _loadCirclesFromFirebase();
+    await _loadCirclesFromFirebase();
   }
 
   void _showCircleOptions(Circle circle) {
@@ -396,11 +395,11 @@ class _EditMapPageState extends State<EditMapPage> {
                             );
                           }).toList(),
                           onChanged: showOption
-                              ? (newValue) {
+                              ? (newValue) async {
                                   setState(() {
                                     selectedFloor = newValue;
                                   });
-                                  _checkAndDownloadImage();
+                                  await _checkAndDownloadImage();
                                 }
                               : null,
                         ),
