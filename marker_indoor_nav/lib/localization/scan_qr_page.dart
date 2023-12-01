@@ -53,7 +53,7 @@ class _QRScanPageState extends State<QRScanPage> {
         overlay: QrScannerOverlayShape(
           borderColor: Colors.transparent,
           cutOutWidth: MediaQuery.of(context).size.width,
-          cutOutHeight: MediaQuery.of(context).size.height / 1.5,
+          cutOutHeight: MediaQuery.of(context).size.height,
         ));
   }
 
@@ -91,28 +91,27 @@ class _QRScanPageState extends State<QRScanPage> {
   showUserPosition(String location, String circleID) async {
     Image? uploadedImage = await downloadImage(location);
     Circle? circle = await loadCircle(location, circleID);
-    print(circle?.position.toString());
 
     return showDialog(
       context: context,
       builder: (_) => Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: EdgeInsets.all(0),
-        child: Stack(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Column(
-              mainAxisSize: MainAxisSize.min,
+            Container(
+                decoration: BoxDecoration(color: Colors.transparent),
+                child: Text(
+                  "Here You Are",
+                  style: TextStyle(
+                      backgroundColor: Colors.transparent,
+                      fontSize: 25,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white),
+                )),
+            Stack(
               children: [
-                Container(
-                    decoration: BoxDecoration(color: Colors.transparent),
-                    child: Text(
-                      "Here You Are",
-                      style: TextStyle(
-                          backgroundColor: Colors.transparent,
-                          fontSize: 25,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white),
-                    )),
                 SizedBox(
                   width: MediaQuery.of(context).size.width,
                   height: MediaQuery.of(context).size.height / 1.5,
@@ -122,19 +121,19 @@ class _QRScanPageState extends State<QRScanPage> {
                     alignment: Alignment.center,
                   ),
                 ),
+                Positioned(
+                    left: circle?.position.dx,
+                    top: circle!.position.dy,
+                    child: Container(
+                      width: circle.size,
+                      height: circle.size,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.blue,
+                      ),
+                    ))
               ],
             ),
-            Positioned(
-                left: circle?.position.dx,
-                top: circle!.position.dy,
-                child: Container(
-                  width: circle.size,
-                  height: circle.size,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.blue,
-                  ),
-                ))
           ],
         ),
       ),

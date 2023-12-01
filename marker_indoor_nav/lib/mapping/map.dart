@@ -35,8 +35,6 @@ class _EditMapPageState extends State<EditMapPage> {
   bool showOption = true;
 
   final GlobalKey imageKey = GlobalKey();
-  final GlobalKey paddingKey = GlobalKey();
-  final GlobalKey ancestor = GlobalKey();
 
   bool dirExists = false;
   dynamic externalDir = '/storage/emulated/0/Download/Qr_code';
@@ -375,364 +373,342 @@ class _EditMapPageState extends State<EditMapPage> {
             }
           });
         },
-        child: Stack(
-          key: ancestor,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  key: paddingKey,
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        // Make the dropdown take up all available horizontal space
-                        child: DropdownButton<String>(
-                          value: selectedFloor,
-                          items: floorOptions.map((String value) {
-                            return DropdownMenuItem<String>(
-                              value: value,
-                              child: Text(value),
-                            );
-                          }).toList(),
-                          onChanged: showOption
-                              ? (newValue) async {
-                                  setState(() {
-                                    selectedFloor = newValue;
-                                  });
-                                  await _checkAndDownloadImage();
-                                }
-                              : null,
-                        ),
-                      ),
-                    ],
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    // Make the dropdown take up all available horizontal space
+                    child: DropdownButton<String>(
+                      value: selectedFloor,
+                      items: floorOptions.map((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
+                      onChanged: showOption
+                          ? (newValue) async {
+                              setState(() {
+                                selectedFloor = newValue;
+                              });
+                              await _checkAndDownloadImage();
+                            }
+                          : null,
+                    ),
                   ),
-                ),
-                Align(
-                  alignment: Alignment.topCenter,
-                  child: Stack(
-                    children: [
-                      hasImage && uploadedImage != null
-                          ? Container(
-                              decoration: BoxDecoration(
-                                border: Border(
-                                    top: BorderSide(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
-                                        width: 2),
-                                    bottom: BorderSide(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
-                                        width: 2)),
-                              ),
-                              key: imageKey,
-                              width: MediaQuery.of(context)
-                                  .size
-                                  .width, // Use the full width
-                              height: MediaQuery.of(context).size.height /
-                                  1.5, // Use half the available height
-                              child: Image(
-                                image: uploadedImage!.image,
-                                fit: BoxFit.fill, //BoxFit.contain?
-                                alignment: Alignment.center,
-                              ),
-                            )
-                          : Container(
-                              width: MediaQuery.of(context).size.width,
-                              height: MediaQuery.of(context).size.height / 1.5,
-                              decoration: BoxDecoration(
-                                border: Border(
-                                    top: BorderSide(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
-                                        width: 2),
-                                    bottom: BorderSide(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
-                                        width: 2)),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  "Please upload a map.",
-                                  style: TextStyle(
+                ],
+              ),
+            ),
+            Align(
+              alignment: Alignment.topCenter,
+              child: Stack(
+                children: [
+                  hasImage && uploadedImage != null
+                      ? Container(
+                          decoration: BoxDecoration(
+                            border: Border(
+                                top: BorderSide(
                                     color:
                                         Theme.of(context).colorScheme.primary,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
+                                    width: 2),
+                                bottom: BorderSide(
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                    width: 2)),
+                          ),
+                          key: imageKey,
+                          width: MediaQuery.of(context)
+                              .size
+                              .width, // Use the full width
+                          height: MediaQuery.of(context).size.height /
+                              1.5, // Use half the available height
+                          child: Image(
+                            image: uploadedImage!.image,
+                            fit: BoxFit.fill, //BoxFit.contain?
+                            alignment: Alignment.center,
+                          ),
+                        )
+                      : Container(
+                          width: MediaQuery.of(context).size.width,
+                          height: MediaQuery.of(context).size.height / 1.5,
+                          decoration: BoxDecoration(
+                            border: Border(
+                                top: BorderSide(
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                    width: 2),
+                                bottom: BorderSide(
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                    width: 2)),
+                          ),
+                          child: Center(
+                            child: Text(
+                              "Please upload a map.",
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      ElevatedButton(
-                        onPressed: () async {
-                          if (showOption) {
-                            Offset position = Offset.zero;
-                            // final RenderBox renderBox = paddingKey.currentContext!.findRenderObject() as RenderBox;
-                            bool touched = false;
-                            await showDialog(
-                              context: context,
-                              builder: (_) => Dialog(
-                                backgroundColor: Colors.transparent,
-                                insetPadding: EdgeInsets.all(0),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                        decoration: BoxDecoration(
-                                            color: Colors.transparent),
-                                        child: Text(
-                                          "Select a location to add a node",
-                                          style: TextStyle(
-                                              backgroundColor:
-                                                  Colors.transparent,
-                                              fontSize: 25,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white),
-                                        )),
-                                    GestureDetector(
-                                      onTapDown: (details) {
-                                        position = Offset(
-                                            details.localPosition.dx - 15,
-                                            details.localPosition.dy - 15);
-                                        Navigator.pop(context);
-                                        touched = true;
-                                      },
-                                      child: SizedBox(
-                                        width:
-                                            MediaQuery.of(context).size.width,
-                                        height:
-                                            MediaQuery.of(context).size.height /
-                                                1.5,
-                                        child: Image(
-                                          image: uploadedImage!.image,
-                                          fit: BoxFit.fill, //BoxFit.contain?
-                                          alignment: Alignment.center,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
+                          ),
+                        ),
+                  ...circles.map((start) {
+                    for (var dest_id in start.connected_nodes.keys) {
+                      Circle end = circles
+                          .firstWhere((element) => element.id == dest_id);
 
-                            if (touched) {
-                              Circle circle = Circle(
-                                  position, DateTime.now().toIso8601String());
-                              await Navigator.push(
-                                  context,
-                                  MaterialPageRoute<void>(
-                                      builder: (BuildContext context) =>
-                                          AddNodePage(
-                                              circle: circle,
-                                              location:
-                                                  '${widget.profileName} $selectedFloor')));
-                              if (circle.name!.isNotEmpty) {
-                                setState(() {
-                                  circles.add(circle);
-                                });
-                              }
-                            }
+                      return CustomPaint(
+                        painter: drawEdges(start, end),
+                      );
+                    }
+
+                    return Divider(
+                      color: Colors.transparent,
+                      thickness: 0,
+                    );
+                  }),
+                  ...circles.map((start) {
+                    for (var dest_id in start.connected_nodes.keys) {
+                      Circle end = circles
+                          .firstWhere((element) => element.id == dest_id);
+
+                      Offset start_mid = Offset(
+                          start.position.dx + start.size / 2,
+                          start.position.dy + start.size / 2);
+                      Offset end_mid = Offset(end.position.dx + end.size / 2,
+                          end.position.dy + end.size / 2);
+                      double box_width = (start_mid.dx - end_mid.dx).abs();
+                      double box_height = (start_mid.dy - end_mid.dy).abs();
+
+                      return Positioned(
+                        left:
+                            (box_width / 2) + min(start_mid.dx, end_mid.dx) - 8,
+                        top: (box_height / 2) +
+                            min(start_mid.dy, end_mid.dy) -
+                            8,
+                        child: GestureDetector(
+                          onTap: () {
+                            showEdgeOptions(start, end);
+                          },
+                          child: Container(
+                            width: 16,
+                            height: 16,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.red, width: 3),
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    return Divider(
+                      color: Colors.transparent,
+                      thickness: 0,
+                    );
+                  }),
+                  ...circles.map((circle) {
+                    return Positioned(
+                      left: circle.position.dx,
+                      top: circle.position.dy,
+                      child: GestureDetector(
+                        onTap: () async {
+                          if (showOption) {
+                            _showCircleOptions(circle);
                           } else {
-                            showOption = true;
                             setState(() {
-                              for (var c in circles) {
-                                c.selected = false;
+                              if (circle.selected == false) {
+                                circles_id.add(circle.id);
+                                circle.selected = true;
+                              } else {
+                                circles_id.remove(circle.id);
+                                circle.selected = false;
                               }
-                              circles_id = [];
                             });
                           }
                         },
-                        child: showOption ? Text('Add Node') : Text('Cancel'),
-                      ),
-                      ElevatedButton(
-                        onPressed: () {
+                        onLongPress: () {
                           setState(() {
-                            for (var c in circles) {
-                              c.selected = false;
-                            }
-                            if (showOption) {
-                              showOption = false;
-                            } else {
-                              showOption = true;
-                              for (var i = 0; i < circles_id.length; i++) {
-                                final current_circle = circles.firstWhere(
-                                    (element) => element.id == circles_id[i]);
-                                if (i + 1 != circles_id.length) {
-                                  current_circle
-                                      .connected_nodes[circles_id[i + 1]] = {
-                                    'distance': 0,
-                                    'direction': '-'
-                                  };
-                                }
-                                if (i != 0) {
-                                  current_circle
-                                      .connected_nodes[circles_id[i - 1]] = {
-                                    'distance': 0,
-                                    'direction': '-'
-                                  };
-                                }
+                            if (circle.selected == false) {
+                              for (var c in circles) {
+                                c.selected = false;
                               }
-                              circles_id = [];
+                              circle.selected = true;
+                            } else {
+                              circle.selected = false;
                             }
                           });
                         },
-                        child:
-                            showOption ? Text('Connect Nodes') : Text('Save'),
+                        onPanUpdate: (details) {
+                          if (circle.selected == true) {
+                            double dx = 0, dy = 0;
+                            if ((circle.position.dy + details.delta.dy) < 0.0) {
+                              dy = 0.0;
+                            } else if ((circle.position.dy + details.delta.dy) >
+                                (imageKey.currentContext!.size!.height -
+                                    circle.size)) {
+                              dy = imageKey.currentContext!.size!.height +
+                                  -circle.size;
+                            } else {
+                              dy = circle.position.dy + details.delta.dy;
+                            }
+
+                            if ((circle.position.dx + details.delta.dx) >
+                                (imageKey.currentContext!.size!.width -
+                                    circle.size)) {
+                              dx = imageKey.currentContext!.size!.width -
+                                  circle.size;
+                            } else {
+                              dx = circle.position.dx + details.delta.dx;
+                            }
+
+                            setState(() {
+                              circle.position = Offset(dx, dy);
+                            });
+                          }
+                        },
+                        child: Container(
+                          width: circle.size,
+                          height: circle.size,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: circle.selected == true && showOption
+                                ? Colors.green
+                                : circle.selected == true && !showOption
+                                    ? Colors.orange
+                                    : Colors.blue,
+                          ),
+                        ),
                       ),
-                    ],
-                  ),
-                )
-              ],
+                    );
+                  }).toList(),
+                ],
+              ),
             ),
-            ...circles.map((start) {
-              for (var dest_id in start.connected_nodes.keys) {
-                Circle end =
-                    circles.firstWhere((element) => element.id == dest_id);
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  ElevatedButton(
+                    onPressed: () async {
+                      if (showOption) {
+                        Offset position = Offset.zero;
+                        bool touched = false;
+                        await showDialog(
+                          context: context,
+                          builder: (_) => Dialog(
+                            backgroundColor: Colors.transparent,
+                            insetPadding: EdgeInsets.all(0),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                    decoration: BoxDecoration(
+                                        color: Colors.transparent),
+                                    child: Text(
+                                      "Select a location to add a node",
+                                      style: TextStyle(
+                                          backgroundColor: Colors.transparent,
+                                          fontSize: 25,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white),
+                                    )),
+                                GestureDetector(
+                                  onTapDown: (details) {
+                                    position = Offset(
+                                        details.localPosition.dx - 15,
+                                        details.localPosition.dy - 15);
+                                    Navigator.pop(context);
+                                    touched = true;
+                                  },
+                                  child: SizedBox(
+                                    width: MediaQuery.of(context).size.width,
+                                    height: MediaQuery.of(context).size.height /
+                                        1.5,
+                                    child: Image(
+                                      image: uploadedImage!.image,
+                                      fit: BoxFit.fill, //BoxFit.contain?
+                                      alignment: Alignment.center,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
 
-                return CustomPaint(
-                  painter: drawEdges(start, end, imageKey, ancestor),
-                );
-              }
-
-              return Divider(
-                color: Colors.transparent,
-                thickness: 0,
-              );
-            }),
-            ...circles.map((start) {
-              for (var dest_id in start.connected_nodes.keys) {
-                Circle end =
-                    circles.firstWhere((element) => element.id == dest_id);
-                final RenderBox renderBox =
-                    imageKey.currentContext!.findRenderObject() as RenderBox;
-                final start_position = renderBox.localToGlobal(start.position,
-                    ancestor: ancestor.currentContext!.findRenderObject());
-                final end_position = renderBox.localToGlobal(end.position,
-                    ancestor: ancestor.currentContext!.findRenderObject());
-
-                Offset start_mid = Offset(start_position.dx + start.size / 2,
-                    start_position.dy + start.size / 2);
-                Offset end_mid = Offset(end_position.dx + end.size / 2,
-                    end_position.dy + end.size / 2);
-                double box_width = (start_mid.dx - end_mid.dx).abs();
-                double box_height = (start_mid.dy - end_mid.dy).abs();
-
-                return Positioned(
-                  left: (box_width / 2) + min(start_mid.dx, end_mid.dx) - 8,
-                  top: (box_height / 2) + min(start_mid.dy, end_mid.dy) - 8,
-                  child: GestureDetector(
-                    onTap: () {
-                      showEdgeOptions(start, end);
-                    },
-                    child: Container(
-                      width: 16,
-                      height: 16,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.red, width: 3),
-                        shape: BoxShape.circle,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                );
-              }
-
-              return Divider(
-                color: Colors.transparent,
-                thickness: 0,
-              );
-            }),
-            ...circles.map((circle) {
-              final RenderBox renderBox =
-                  imageKey.currentContext!.findRenderObject() as RenderBox;
-              final circle_position = renderBox.localToGlobal(circle.position,
-                  ancestor: ancestor.currentContext!.findRenderObject());
-              return Positioned(
-                left: circle_position.dx,
-                top: circle_position.dy,
-                child: GestureDetector(
-                  onTap: () async {
-                    if (showOption) {
-                      _showCircleOptions(circle);
-                    } else {
-                      setState(() {
-                        if (circle.selected == false) {
-                          circles_id.add(circle.id);
-                          circle.selected = true;
-                        } else {
-                          circles_id.remove(circle.id);
-                          circle.selected = false;
+                        if (touched) {
+                          Circle circle = Circle(
+                              position, DateTime.now().toIso8601String());
+                          await Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                  builder: (BuildContext context) => AddNodePage(
+                                      circle: circle,
+                                      location:
+                                          '${widget.profileName} $selectedFloor')));
+                          if (circle.name!.isNotEmpty) {
+                            setState(() {
+                              circles.add(circle);
+                            });
+                          }
                         }
-                      });
-                    }
-                  },
-                  onLongPress: () {
-                    setState(() {
-                      if (circle.selected == false) {
+                      } else {
+                        showOption = true;
+                        setState(() {
+                          for (var c in circles) {
+                            c.selected = false;
+                          }
+                          circles_id = [];
+                        });
+                      }
+                    },
+                    child: showOption ? Text('Add Node') : Text('Cancel'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
                         for (var c in circles) {
                           c.selected = false;
                         }
-                        circle.selected = true;
-                      } else {
-                        circle.selected = false;
-                      }
-                    });
-                  },
-                  onPanUpdate: (details) {
-                    if (circle.selected == true) {
-                      double dx = 0, dy = 0;
-                      if ((circle.position.dy + details.delta.dy) < 0.0) {
-                        dy = 0.0;
-                      } else if ((circle.position.dy + details.delta.dy) >
-                          (imageKey.currentContext!.size!.height -
-                              circle.size)) {
-                        dy = imageKey.currentContext!.size!.height +
-                            -circle.size;
-                      } else {
-                        dy = circle.position.dy + details.delta.dy;
-                      }
-
-                      if ((circle.position.dx + details.delta.dx) >
-                          (imageKey.currentContext!.size!.width -
-                              circle.size)) {
-                        dx = imageKey.currentContext!.size!.width - circle.size;
-                      } else {
-                        dx = circle.position.dx + details.delta.dx;
-                      }
-
-                      setState(() {
-                        circle.position = Offset(dx, dy);
+                        if (showOption) {
+                          showOption = false;
+                        } else {
+                          showOption = true;
+                          for (var i = 0; i < circles_id.length; i++) {
+                            final current_circle = circles.firstWhere(
+                                (element) => element.id == circles_id[i]);
+                            if (i + 1 != circles_id.length) {
+                              current_circle
+                                  .connected_nodes[circles_id[i + 1]] = {
+                                'distance': 0,
+                                'direction': '-'
+                              };
+                            }
+                            if (i != 0) {
+                              current_circle
+                                  .connected_nodes[circles_id[i - 1]] = {
+                                'distance': 0,
+                                'direction': '-'
+                              };
+                            }
+                          }
+                          circles_id = [];
+                        }
                       });
-                    }
-                  },
-                  child: Container(
-                    width: circle.size,
-                    height: circle.size,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: circle.selected == true && showOption
-                          ? Colors.green
-                          : circle.selected == true && !showOption
-                              ? Colors.orange
-                              : Colors.blue,
-                    ),
+                    },
+                    child: showOption ? Text('Connect Nodes') : Text('Save'),
                   ),
-                ),
-              );
-            }).toList(),
+                ],
+              ),
+            )
           ],
         ),
       ),
@@ -782,9 +758,8 @@ class Circle {
 
 class drawEdges extends CustomPainter {
   Circle start, end;
-  GlobalKey key = GlobalKey(), ancestor = GlobalKey();
 
-  drawEdges(this.start, this.end, this.key, this.ancestor);
+  drawEdges(this.start, this.end);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -793,17 +768,10 @@ class drawEdges extends CustomPainter {
       ..style = PaintingStyle.fill
       ..strokeWidth = 5;
 
-    final RenderBox renderBox =
-        key.currentContext!.findRenderObject() as RenderBox;
-    final start_position = renderBox.localToGlobal(start.position,
-        ancestor: ancestor.currentContext!.findRenderObject());
-    final end_position = renderBox.localToGlobal(end.position,
-        ancestor: ancestor.currentContext!.findRenderObject());
-
     canvas.drawLine(
-        Offset(start_position.dx + start.size / 2,
-            start_position.dy + start.size / 2),
-        Offset(end_position.dx + end.size / 2, end_position.dy + end.size / 2),
+        Offset(start.position.dx + start.size / 2,
+            start.position.dy + start.size / 2),
+        Offset(end.position.dx + end.size / 2, end.position.dy + end.size / 2),
         paint);
   }
 
