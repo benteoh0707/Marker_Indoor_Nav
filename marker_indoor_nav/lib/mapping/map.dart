@@ -55,7 +55,10 @@ class _EditMapPageState extends State<EditMapPage> {
   }
 
   Future<void> _saveCirclesToFirebase() async {
-    final circlesJson = circles.map((circle) => circle.toJson()).toList();
+    final circlesJson = circles.map((circle) {
+      circle.selected = false;
+      circle.toJson();
+    }).toList();
     final circlesString = jsonEncode(circlesJson);
 
     final mapId = '${widget.profileName} $selectedFloor';
