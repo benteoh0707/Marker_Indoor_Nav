@@ -38,23 +38,23 @@ class _QRScanPageState extends State<QRScanPage> {
 
   Widget buildQrView(BuildContext context) {
     return QRView(
-      key: qrKey,
-      onQRViewCreated: (QRViewController controller) {
-        setState(() {
-          this.controller = controller;
-        });
-        controller.scannedDataStream.listen((qr) async {
-          controller.pauseCamera();
-          List<String> result = qr.code!.split('_');
-          await showUserPosition(result[0], result[1])
-              .then((value) => controller.resumeCamera());
-        });
-      },
-      overlay: QrScannerOverlayShape(
+        key: qrKey,
+        onQRViewCreated: (QRViewController controller) {
+          setState(() {
+            this.controller = controller;
+          });
+          controller.scannedDataStream.listen((qr) async {
+            controller.pauseCamera();
+            List<String> result = qr.code!.split('_');
+            await showUserPosition(result[0], result[1])
+                .then((value) => controller.resumeCamera());
+          });
+        },
+        overlay: QrScannerOverlayShape(
           borderColor: Colors.transparent,
           cutOutWidth: MediaQuery.of(context).size.width,
-          cutOutHeight: MediaQuery.of(context).size.height),
-    );
+          cutOutHeight: MediaQuery.of(context).size.height / 1.5,
+        ));
   }
 
   Future<Image?> downloadImage(String location) async {
@@ -157,7 +157,7 @@ class _QRScanPageState extends State<QRScanPage> {
         centerTitle: true,
         actions: [
           IconButton(
-              padding: EdgeInsets.all(16),
+              padding: EdgeInsets.only(right: 16),
               onPressed: () {
                 Navigator.push(context,
                     MaterialPageRoute(builder: (context) => EditProfilePage()));
@@ -173,12 +173,14 @@ class _QRScanPageState extends State<QRScanPage> {
       ),
       body: Column(
         children: [
-          SizedBox(
-              width: MediaQuery.of(context).size.width,
-              height: MediaQuery.of(context).size.height / 1.2,
-              child: buildQrView(context)),
+          Expanded(
+            child: SizedBox(
+                width: MediaQuery.of(context).size.width,
+                height: MediaQuery.of(context).size.height / 1.2,
+                child: buildQrView(context)),
+          ),
           Padding(
-            padding: EdgeInsets.fromLTRB(16.0, 0, 16.0, 0),
+            padding: EdgeInsets.all(8.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [

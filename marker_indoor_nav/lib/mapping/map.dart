@@ -36,6 +36,7 @@ class _EditMapPageState extends State<EditMapPage> {
 
   final GlobalKey imageKey = GlobalKey();
   final GlobalKey paddingKey = GlobalKey();
+  final GlobalKey ancestor = GlobalKey();
 
   bool dirExists = false;
   dynamic externalDir = '/storage/emulated/0/Download/Qr_code';
@@ -375,6 +376,7 @@ class _EditMapPageState extends State<EditMapPage> {
           });
         },
         child: Stack(
+          key: ancestor,
           children: [
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -478,9 +480,7 @@ class _EditMapPageState extends State<EditMapPage> {
                         onPressed: () async {
                           if (showOption) {
                             Offset position = Offset.zero;
-                            final RenderBox renderBox =
-                                paddingKey.currentContext!.findRenderObject()
-                                    as RenderBox;
+                            // final RenderBox renderBox = paddingKey.currentContext!.findRenderObject() as RenderBox;
                             bool touched = false;
                             await showDialog(
                               context: context,
@@ -506,9 +506,7 @@ class _EditMapPageState extends State<EditMapPage> {
                                       onTapDown: (details) {
                                         position = Offset(
                                             details.localPosition.dx - 15,
-                                            details.localPosition.dy +
-                                                renderBox.size.height -
-                                                15);
+                                            details.localPosition.dy - 15);
                                         Navigator.pop(context);
                                         touched = true;
                                       },
@@ -605,7 +603,7 @@ class _EditMapPageState extends State<EditMapPage> {
                     circles.firstWhere((element) => element.id == dest_id);
 
                 return CustomPaint(
-                  painter: drawEdges(start, end),
+                  painter: drawEdges(start, end, imageKey, ancestor),
                 );
               }
 
@@ -618,11 +616,17 @@ class _EditMapPageState extends State<EditMapPage> {
               for (var dest_id in start.connected_nodes.keys) {
                 Circle end =
                     circles.firstWhere((element) => element.id == dest_id);
+                final RenderBox renderBox =
+                    imageKey.currentContext!.findRenderObject() as RenderBox;
+                final start_position = renderBox.localToGlobal(start.position,
+                    ancestor: ancestor.currentContext!.findRenderObject());
+                final end_position = renderBox.localToGlobal(end.position,
+                    ancestor: ancestor.currentContext!.findRenderObject());
 
-                Offset start_mid = Offset(start.position.dx + start.size / 2,
-                    start.position.dy + start.size / 2);
-                Offset end_mid = Offset(end.position.dx + end.size / 2,
-                    end.position.dy + end.size / 2);
+                Offset start_mid = Offset(start_position.dx + start.size / 2,
+                    start_position.dy + start.size / 2);
+                Offset end_mid = Offset(end_position.dx + end.size / 2,
+                    end_position.dy + end.size / 2);
                 double box_width = (start_mid.dx - end_mid.dx).abs();
                 double box_height = (start_mid.dy - end_mid.dy).abs();
 
@@ -652,9 +656,13 @@ class _EditMapPageState extends State<EditMapPage> {
               );
             }),
             ...circles.map((circle) {
+              final RenderBox renderBox =
+                  imageKey.currentContext!.findRenderObject() as RenderBox;
+              final circle_position = renderBox.localToGlobal(circle.position,
+                  ancestor: ancestor.currentContext!.findRenderObject());
               return Positioned(
-                left: circle.position.dx,
-                top: circle.position.dy,
+                left: circle_position.dx,
+                top: circle_position.dy,
                 child: GestureDetector(
                   onTap: () async {
                     if (showOption) {
@@ -685,29 +693,28 @@ class _EditMapPageState extends State<EditMapPage> {
                   },
                   onPanUpdate: (details) {
                     if (circle.selected == true) {
+                      double dx = 0, dy = 0;
+                      if ((circle.position.dy + details.delta.dy) < 0.0) {
+                        dy = 0.0;
+                      } else if ((circle.position.dy + details.delta.dy) >
+                          (imageKey.currentContext!.size!.height -
+                              circle.size)) {
+                        dy = imageKey.currentContext!.size!.height +
+                            -circle.size;
+                      } else {
+                        dy = circle.position.dy + details.delta.dy;
+                      }
+
+                      if ((circle.position.dx + details.delta.dx) >
+                          (imageKey.currentContext!.size!.width -
+                              circle.size)) {
+                        dx = imageKey.currentContext!.size!.width - circle.size;
+                      } else {
+                        dx = circle.position.dx + details.delta.dx;
+                      }
+
                       setState(() {
-                        if (paddingKey.currentContext!.size!.height >
-                            (circle.position.dy + details.delta.dy)) {
-                          circle.position = Offset(
-                            circle.position.dx + details.delta.dx,
-                            paddingKey.currentContext!.size!.height,
-                          );
-                        } else if ((circle.position.dy + details.delta.dy) >
-                            (imageKey.currentContext!.size!.height +
-                                paddingKey.currentContext!.size!.height -
-                                circle.size)) {
-                          circle.position = Offset(
-                            circle.position.dx + details.delta.dx,
-                            imageKey.currentContext!.size!.height +
-                                paddingKey.currentContext!.size!.height -
-                                circle.size,
-                          );
-                        } else {
-                          circle.position = Offset(
-                            circle.position.dx + details.delta.dx,
-                            circle.position.dy + details.delta.dy,
-                          );
-                        }
+                        circle.position = Offset(dx, dy);
                       });
                     }
                   },
@@ -734,7 +741,7 @@ class _EditMapPageState extends State<EditMapPage> {
 }
 
 class Circle {
-  Offset position;
+  Offset position; //refer to local position of image key
   final String id;
   bool? selected;
   double size; // New property for size
@@ -775,8 +782,9 @@ class Circle {
 
 class drawEdges extends CustomPainter {
   Circle start, end;
+  GlobalKey key = GlobalKey(), ancestor = GlobalKey();
 
-  drawEdges(this.start, this.end);
+  drawEdges(this.start, this.end, this.key, this.ancestor);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -785,10 +793,17 @@ class drawEdges extends CustomPainter {
       ..style = PaintingStyle.fill
       ..strokeWidth = 5;
 
+    final RenderBox renderBox =
+        key.currentContext!.findRenderObject() as RenderBox;
+    final start_position = renderBox.localToGlobal(start.position,
+        ancestor: ancestor.currentContext!.findRenderObject());
+    final end_position = renderBox.localToGlobal(end.position,
+        ancestor: ancestor.currentContext!.findRenderObject());
+
     canvas.drawLine(
-        Offset(start.position.dx + start.size / 2,
-            start.position.dy + start.size / 2),
-        Offset(end.position.dx + end.size / 2, end.position.dy + end.size / 2),
+        Offset(start_position.dx + start.size / 2,
+            start_position.dy + start.size / 2),
+        Offset(end_position.dx + end.size / 2, end_position.dy + end.size / 2),
         paint);
   }
 
