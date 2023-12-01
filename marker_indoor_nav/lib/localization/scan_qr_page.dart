@@ -2,13 +2,16 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_compass/flutter_compass.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:marker_indoor_nav/mapping/building_profile.dart';
 import 'package:marker_indoor_nav/mapping/map.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class QRScanPage extends StatefulWidget {
   const QRScanPage({super.key});
@@ -20,6 +23,12 @@ class QRScanPage extends StatefulWidget {
 class _QRScanPageState extends State<QRScanPage> {
   final qrKey = GlobalKey(debugLabel: 'QR');
   QRViewController? controller;
+
+  @override
+  void initState() {
+    super.initState();
+    Permission.locationWhenInUse.status;
+  }
 
   @override
   void dispose() {
@@ -70,7 +79,7 @@ class _QRScanPageState extends State<QRScanPage> {
     }
   }
 
-  Future<Circle?> loadCircle(String location, String circleID) async {
+  Future<List<Circle>?> loadCircles(String location) async {
     final doc =
         await FirebaseFirestore.instance.collection('maps').doc(location).get();
 
@@ -80,9 +89,8 @@ class _QRScanPageState extends State<QRScanPage> {
       final circlesJson = jsonDecode(circlesString) as List;
       final loadedCircles =
           circlesJson.map((circleJson) => Circle.fromJson(circleJson)).toList();
-      final circle =
-          loadedCircles.firstWhere((element) => element.id == circleID);
-      return circle;
+
+      return loadedCircles;
     } else {
       return null;
     }
@@ -90,53 +98,127 @@ class _QRScanPageState extends State<QRScanPage> {
 
   showUserPosition(String location, String circleID) async {
     Image? uploadedImage = await downloadImage(location);
-    Circle? circle = await loadCircle(location, circleID);
+    List<Circle>? circles = await loadCircles(location);
 
     return showDialog(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: EdgeInsets.all(0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-                decoration: BoxDecoration(color: Colors.transparent),
-                child: Text(
-                  "Here You Are",
-                  style: TextStyle(
-                      backgroundColor: Colors.transparent,
-                      fontSize: 25,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white),
-                )),
-            Stack(
-              children: [
-                SizedBox(
-                  width: MediaQuery.of(context).size.width,
-                  height: MediaQuery.of(context).size.height / 1.5,
-                  child: Image(
-                    image: uploadedImage!.image,
-                    fit: BoxFit.fill, //BoxFit.contain?
-                    alignment: Alignment.center,
-                  ),
-                ),
-                Positioned(
-                    left: circle?.position.dx,
-                    top: circle!.position.dy,
-                    child: Container(
-                      width: circle.size,
-                      height: circle.size,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.blue,
+      builder: (_) => StreamBuilder<CompassEvent>(
+          stream: FlutterCompass.events,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Text('Error reading heading: ${snapshot.error}');
+            }
+
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(),
+              );
+            }
+
+            double? direction = snapshot.data!.heading;
+
+            return Dialog(
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              insetPadding: EdgeInsets.all(0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                      decoration: BoxDecoration(color: Colors.transparent),
+                      child: Text(
+                        "Here you are",
+                        style: TextStyle(
+                            backgroundColor: Colors.transparent,
+                            fontSize: 25,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white),
+                      )),
+                  Stack(
+                    children: [
+                      SizedBox(
+                        width: MediaQuery.of(context).size.width,
+                        height: MediaQuery.of(context).size.height / 1.5,
+                        child: Image(
+                          image: uploadedImage!.image,
+                          fit: BoxFit.fill, //BoxFit.contain?
+                          alignment: Alignment.center,
+                        ),
                       ),
-                    ))
-              ],
-            ),
-          ],
-        ),
-      ),
+                      ...circles!.map((circle) {
+                        return Positioned(
+                            left: circle.position.dx,
+                            top: circle.position.dy,
+                            child: circle.id == circleID
+                                ? Transform.rotate(
+                                    angle: (direction! * (pi / 180) * -1),
+                                    child: Image.asset(
+                                      'assets/navigation.png',
+                                      scale: 1.1,
+                                      width: circle.size,
+                                      height: circle.size,
+                                    ))
+                                : GestureDetector(
+                                    onTap: () {},
+                                    child: Container(
+                                      width: circle.size,
+                                      height: circle.size,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: Colors.blue,
+                                      ),
+                                    ),
+                                  ));
+                      })
+                    ],
+                  ),
+                  SizedBox(
+                    height: 10,
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Row(
+                        children: [
+                          Image.asset(
+                            'assets/navigation.png',
+                            scale: 1.1,
+                            width: 16,
+                            height: 16,
+                          ),
+                          SizedBox(
+                            width: 10,
+                          ),
+                          Text(
+                            'Current Location',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                            width: 16,
+                            height: 16,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.blue,
+                            ),
+                          ),
+                          SizedBox(
+                            width: 10,
+                          ),
+                          Text('List of destination point',
+                              style: TextStyle(color: Colors.white)),
+                        ],
+                      )
+                    ],
+                  )
+                ],
+              ),
+            );
+          }),
     );
   }
 
