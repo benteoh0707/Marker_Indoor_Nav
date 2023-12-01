@@ -1,0 +1,28 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "marker_indoor_nav",
+            "cwd": "marker_indoor_nav",
+            "request": "launch",
+            "type": "dart"
+        },
+        {
+            "name": "marker_indoor_nav (profile mode)",
+            "cwd": "marker_indoor_nav",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile"
+        },
+        {
+            "name": "marker_indoor_nav (release mode)",
+            "cwd": "marker_indoor_nav",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release"
+        }
+    ]
+}

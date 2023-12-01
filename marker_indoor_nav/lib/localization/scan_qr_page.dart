@@ -1,9 +1,10 @@
-// ignore_for_file: non_constant_identifier_names, avoid_types_as_parameter_names, prefer_const_literals_to_create_immutables, prefer_const_constructors, avoid_print, unused_element, use_build_context_synchronously
+// ignore_for_file: non_constant_identifier_names, avoid_types_as_parameter_names, prefer_const_literals_to_create_immutables, prefer_const_constructors, avoid_print, unused_element, use_build_context_synchronously, prefer_typing_uninitialized_variables
 
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dijkstra/dijkstra.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_compass/flutter_compass.dart';
@@ -11,7 +12,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:marker_indoor_nav/mapping/building_profile.dart';
 import 'package:marker_indoor_nav/mapping/map.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:collection/collection.dart';
 
 class QRScanPage extends StatefulWidget {
   const QRScanPage({super.key});
@@ -23,12 +24,11 @@ class QRScanPage extends StatefulWidget {
 class _QRScanPageState extends State<QRScanPage> {
   final qrKey = GlobalKey(debugLabel: 'QR');
   QRViewController? controller;
-
-  @override
-  void initState() {
-    super.initState();
-    Permission.locationWhenInUse.status;
-  }
+  Circle? start;
+  Map<String, dynamic> floorGraph = {};
+  List<Circle> circles = [];
+  List path = [];
+  bool sel_des = false;
 
   @override
   void dispose() {
@@ -53,10 +53,12 @@ class _QRScanPageState extends State<QRScanPage> {
             this.controller = controller;
           });
           controller.scannedDataStream.listen((qr) async {
-            controller.pauseCamera();
             List<String> result = qr.code!.split('_');
-            await showUserPosition(result[0], result[1])
-                .then((value) => controller.resumeCamera());
+            if (await loadCircles(result)) {
+              controller.pauseCamera();
+              await showUserPosition(result[0], result[1])
+                  .then((value) => controller.resumeCamera());
+            }
           });
         },
         overlay: QrScannerOverlayShape(
@@ -79,26 +81,36 @@ class _QRScanPageState extends State<QRScanPage> {
     }
   }
 
-  Future<List<Circle>?> loadCircles(String location) async {
-    final doc =
-        await FirebaseFirestore.instance.collection('maps').doc(location).get();
+  Future<bool> loadCircles(List<String> result) async {
+    if (result.isEmpty) return false;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('maps')
+        .doc(result[0])
+        .get();
 
     if (doc.exists) {
       final data = doc.data() as Map<String, dynamic>;
       final circlesString = data['circles'];
+      final pathString = data['path'];
       final circlesJson = jsonDecode(circlesString) as List;
-      final loadedCircles =
-          circlesJson.map((circleJson) => Circle.fromJson(circleJson)).toList();
+      floorGraph = jsonDecode(pathString);
 
-      return loadedCircles;
+      circles =
+          circlesJson.map((circleJson) => Circle.fromJson(circleJson)).toList();
+      for (var c in circles) {
+        if (c.id == result[1]) return true;
+      }
+      return false;
     } else {
-      return null;
+      return false;
     }
   }
 
   showUserPosition(String location, String circleID) async {
     Image? uploadedImage = await downloadImage(location);
-    List<Circle>? circles = await loadCircles(location);
+    path = [];
+    sel_des = false;
 
     return showDialog(
       context: context,
@@ -127,7 +139,7 @@ class _QRScanPageState extends State<QRScanPage> {
                   Container(
                       decoration: BoxDecoration(color: Colors.transparent),
                       child: Text(
-                        "Here you are",
+                        'Select a destination',
                         style: TextStyle(
                             backgroundColor: Colors.transparent,
                             fontSize: 25,
@@ -145,21 +157,54 @@ class _QRScanPageState extends State<QRScanPage> {
                           alignment: Alignment.center,
                         ),
                       ),
-                      ...circles!.map((circle) {
+                      ...path.mapIndexed((index, current_id) {
+                        if (index + 1 < path.length) {
+                          Circle next = circles.firstWhere(
+                              (element) => element.id == path[index + 1]);
+                          Circle current = circles.firstWhere(
+                              (element) => element.id == current_id);
+
+                          return CustomPaint(
+                            painter: drawEdges(current, next),
+                          );
+                        } else {
+                          return Divider(
+                            color: Colors.transparent,
+                            thickness: 0,
+                          );
+                        }
+                      }),
+                      ...circles.map((circle) {
+                        if (circle.id == circleID) {
+                          start = circle;
+                        }
+
                         return Positioned(
-                            left: circle.position.dx,
-                            top: circle.position.dy,
+                            left: circle.id == circleID
+                                ? circle.position.dx - circle.size
+                                : circle.position.dx,
+                            top: circle.id == circleID
+                                ? circle.position.dy - circle.size
+                                : circle.position.dy,
                             child: circle.id == circleID
                                 ? Transform.rotate(
-                                    angle: (direction! * (pi / 180) * -1),
+                                    angle: (direction! * (pi / 180)),
                                     child: Image.asset(
                                       'assets/navigation.png',
                                       scale: 1.1,
-                                      width: circle.size,
-                                      height: circle.size,
+                                      width: circle.size * 3,
+                                      height: circle.size * 3,
                                     ))
                                 : GestureDetector(
-                                    onTap: () {},
+                                    onTap: () {
+                                      if (!sel_des) {
+                                        path = Dijkstra.findPathFromGraph(
+                                            floorGraph, start?.id, circle.id);
+                                        setState(() {
+                                          sel_des = true;
+                                        });
+                                      }
+                                    },
                                     child: Container(
                                       width: circle.size,
                                       height: circle.size,
@@ -183,11 +228,8 @@ class _QRScanPageState extends State<QRScanPage> {
                           Image.asset(
                             'assets/navigation.png',
                             scale: 1.1,
-                            width: 16,
-                            height: 16,
-                          ),
-                          SizedBox(
-                            width: 10,
+                            width: 30,
+                            height: 30,
                           ),
                           Text(
                             'Current Location',
@@ -199,8 +241,8 @@ class _QRScanPageState extends State<QRScanPage> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Container(
-                            width: 16,
-                            height: 16,
+                            width: 20,
+                            height: 20,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: Colors.blue,

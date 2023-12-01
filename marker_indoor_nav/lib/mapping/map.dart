@@ -57,15 +57,25 @@ class _EditMapPageState extends State<EditMapPage> {
   Future<void> _saveCirclesToFirebase() async {
     final circlesJson = circles.map((circle) {
       circle.selected = false;
-      circle.toJson();
+      return circle.toJson();
     }).toList();
     final circlesString = jsonEncode(circlesJson);
+    Map<String, dynamic> floorGraph = {};
+    for (var circle in circles) {
+      Map<String, num> temp = {};
+      for (var connect in circle.connected_nodes.keys) {
+        temp[connect] = circle.connected_nodes[connect]['distance'];
+      }
+      floorGraph[circle.id] = temp;
+    }
+
+    final path = jsonEncode(floorGraph);
 
     final mapId = '${widget.profileName} $selectedFloor';
 
     final ref = FirebaseFirestore.instance.collection('maps').doc(mapId);
 
-    await ref.set({'circles': circlesString});
+    await ref.set({'circles': circlesString, 'path': path});
   }
 
   Future<void> _loadCirclesFromFirebase() async {

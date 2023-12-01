@@ -43,18 +43,20 @@ class _AddNodePageState extends State<AddNodePage> {
                 fontSize: 25,
                 fontWeight: FontWeight.bold)),
         actions: <Widget>[
-          IconButton(
-            iconSize: 35,
-            padding: EdgeInsets.only(right: 25.0),
-            icon: Icon(
-              size: 35,
-              Icons.download_rounded,
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: IconButton(
+              iconSize: 35,
+              icon: Icon(
+                size: 35,
+                Icons.download_rounded,
+              ),
+              onPressed: () {
+                _captureAndSavePng(nameController.text.isNotEmpty
+                    ? nameController.text
+                    : circle.id.replaceAll(RegExp(r'[:.]'), '-'));
+              },
             ),
-            onPressed: () {
-              _captureAndSavePng(nameController.text.isNotEmpty
-                  ? nameController.text
-                  : circle.id.replaceAll(RegExp(r'[:.]'), '-'));
-            },
           )
         ],
       ),
