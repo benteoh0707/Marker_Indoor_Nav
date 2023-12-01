@@ -102,7 +102,7 @@ class _EditMapPageState extends State<EditMapPage> {
     final image = await imagePicker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
 
-    final imageName = '${widget.profileName}_${selectedFloor}_map.png';
+    final imageName = '${widget.profileName} ${selectedFloor}_map.png';
     final imageFile = File(image.path);
     final ref =
         FirebaseStorage.instance.ref().child('blueprints').child(imageName);
@@ -119,7 +119,7 @@ class _EditMapPageState extends State<EditMapPage> {
   }
 
   Future<void> _checkAndDownloadImage() async {
-    final imageName = '${widget.profileName}_${selectedFloor}_map.png';
+    final imageName = '${widget.profileName} ${selectedFloor}_map.png';
     final ref =
         FirebaseStorage.instance.ref().child('blueprints').child(imageName);
     // Checking if the image exists
@@ -740,7 +740,6 @@ class Circle {
   double size; // New property for size
   String? name;
   String? description;
-  DateTime? lastTriggered;
   Map<String, dynamic> connected_nodes = {};
 
   Circle(this.position, this.id, {this.size = 30.0, this.selected = false});
