@@ -55,9 +55,19 @@ class _EditMapPageState extends State<EditMapPage> {
   }
 
   Future<void> _saveCirclesToFirebase() async {
+    int? img_width, img_height;
+
+    uploadedImage?.image
+        .resolve(const ImageConfiguration())
+        .addListener(ImageStreamListener((image, synchronousCall) {
+      img_height = image.image.height;
+      img_width = image.image.width;
+    }));
+
     final circlesJson = circles.map((circle) {
       circle.selected = false;
-      return circle.toJson();
+      return circle.toJson(MediaQuery.of(context).size.width,
+          MediaQuery.of(context).size.height / 1.5, img_width, img_height);
     }).toList();
     final circlesString = jsonEncode(circlesJson);
     Map<String, dynamic> floorGraph = {};
@@ -75,7 +85,12 @@ class _EditMapPageState extends State<EditMapPage> {
 
     final ref = FirebaseFirestore.instance.collection('maps').doc(mapId);
 
-    await ref.set({'circles': circlesString, 'path': path});
+    await ref.set({
+      'circles': circlesString,
+      'path': path,
+      'image_width': img_width,
+      'image_height': img_height
+    });
   }
 
   Future<void> _loadCirclesFromFirebase() async {
@@ -86,9 +101,18 @@ class _EditMapPageState extends State<EditMapPage> {
     if (doc.exists) {
       final data = doc.data() as Map<String, dynamic>;
       final circlesString = data['circles'];
+      final img_width = data['image_width'];
+      final img_height = data['image_height'];
+
       final circlesJson = jsonDecode(circlesString) as List;
-      final loadedCircles =
-          circlesJson.map((circleJson) => Circle.fromJson(circleJson)).toList();
+      final loadedCircles = circlesJson
+          .map((circleJson) => Circle.fromJson(
+              circleJson,
+              MediaQuery.of(context).size.width,
+              MediaQuery.of(context).size.height / 1.5,
+              img_width,
+              img_height))
+          .toList();
       setState(() {
         circles = loadedCircles;
       });
@@ -740,11 +764,14 @@ class Circle {
 
   Circle(this.position, this.id, {this.size = 30.0, this.selected = false});
 
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toJson(cont_width, cont_height, img_width, img_height) {
+    double w = position.dx * (img_width / cont_width);
+    double h = position.dy * (img_height / cont_height);
+
     return {
       'position': {
-        'dx': position.dx,
-        'dy': position.dy,
+        'dx': w,
+        'dy': h,
       },
       'id': id,
       'selected': selected,
@@ -755,9 +782,13 @@ class Circle {
     };
   }
 
-  static Circle fromJson(Map<String, dynamic> json) {
+  static Circle fromJson(Map<String, dynamic> json, cont_width, cont_height,
+      img_width, img_height) {
+    double w = json['position']['dx'] * (cont_width / img_width);
+    double h = json['position']['dy'] * (cont_height / img_height);
+
     return Circle(
-      Offset(json['position']['dx'], json['position']['dy']),
+      Offset(w, h),
       json['id'],
       size: json['size'],
       // Add other fields as needed
