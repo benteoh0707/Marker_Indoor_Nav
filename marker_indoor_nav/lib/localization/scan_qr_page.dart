@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 //import 'dart:math';
+import 'package:arcore_flutter_plugin/arcore_flutter_plugin.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 import 'package:dijkstra/dijkstra.dart';
@@ -18,10 +19,11 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:marker_indoor_nav/admin_account/auth.dart';
 import 'package:marker_indoor_nav/admin_account/login_page.dart';
-import 'package:marker_indoor_nav/localization/result_page.dart';
 import 'package:marker_indoor_nav/mapping/building_profile.dart';
 import 'package:marker_indoor_nav/mapping/map.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
+import 'package:vibration/vibration.dart';
+import 'package:vector_math/vector_math_64.dart' hide Colors;
 //import 'package:collection/collection.dart';
 
 class QRScanPage extends StatefulWidget {
@@ -34,6 +36,7 @@ class QRScanPage extends StatefulWidget {
 class _QRScanPageState extends State<QRScanPage> {
   final qrKey = GlobalKey(debugLabel: 'QR');
   QRViewController? controller;
+  ArCoreController? arCoreController;
   //Circle? start;
   Map<String, dynamic> floorGraph = {};
   List<Circle> circles = [];
@@ -44,9 +47,12 @@ class _QRScanPageState extends State<QRScanPage> {
   String? dest_id, dest_name;
   FlutterTts flutterTts = FlutterTts();
   Circle? c;
+  StreamSubscription<CompassEvent>? _compassSubscription;
+  bool arAvailable = false;
 
   @override
   void dispose() {
+    _compassSubscription?.cancel();
     controller?.dispose();
     super.dispose();
   }
@@ -96,15 +102,26 @@ class _QRScanPageState extends State<QRScanPage> {
                       break;
                     }
                   }
+
+                  if (path.isNotEmpty) {
+                    //todo: add direction
+                    await getDirection(
+                        c?.connected_nodes[path[next]]['direction']);
+                  }
                 } else {
                   Navigator.of(context).pop();
                   speak('Unknown Marker');
                 }
                 await controller.resumeCamera();
               } else if (path.isNotEmpty && result[1] != test[1]) {
+                _compassSubscription?.cancel();
+                await flutterTts.stop();
+
                 if (result[0] == test[0]) {
                   if (test[1] == dest_id) {
+                    //reach destination
                     controller.pauseCamera();
+
                     speak(
                         'You have reach your destination,${test[0]} $dest_name');
                     Timer? timer = Timer(Duration(seconds: 7), () {
@@ -127,7 +144,6 @@ class _QRScanPageState extends State<QRScanPage> {
                       },
                     ).then((value) {
                       controller.resumeCamera();
-                      // dispose the timer in case something else has triggered the dismiss.
                       timer?.cancel();
                       timer = null;
                     });
@@ -136,21 +152,33 @@ class _QRScanPageState extends State<QRScanPage> {
                       path = [];
                     });
                   } else if (test[1] == path[next]) {
+                    //identrify next marker
                     setState(() {
                       c = circles
                           .firstWhere((circle) => circle.id == path[next]);
-                      speak('Reach ${test[0]} ${c?.name}');
+                      result = test;
                       next++;
                     });
+                    await speak('Reach ${test[0]} ${c?.name}');
                   } else if (floorGraph.keys.contains(test[1])) {
-                    speak('Reach the wrong next point, Rerouting');
+                    //reroute
+                    await speak('Reach the wrong next point, Rerouting');
+
                     setState(() {
                       next = 1;
                       path = Dijkstra.findPathFromGraph(
                           floorGraph, test[1], dest_id);
                       c = circles.firstWhere((circle) => circle.id == test[1]);
+                      result = test;
                     });
-                    speak('Reroute, Currently at ${test[0]} ${c?.name}');
+
+                    await speak('Reroute, Currently at ${test[0]} ${c?.name}');
+                  }
+
+                  if (path.isNotEmpty) {
+                    //todo: add direction
+                    await getDirection(
+                        c?.connected_nodes[path[next]]['direction']);
                   }
                 } else {
                   final doc = await FirebaseFirestore.instance
@@ -170,6 +198,37 @@ class _QRScanPageState extends State<QRScanPage> {
           cutOutWidth: MediaQuery.of(context).size.width,
           cutOutHeight: MediaQuery.of(context).size.height,
         ));
+  }
+
+  Future<void> getDirection(facing_target) async {
+    bool? canVibrate = await Vibration.hasVibrator();
+    String speech = '';
+    _compassSubscription = FlutterCompass.events?.listen((event) async {
+      double gap = facing_target - event.heading;
+
+      if (gap.truncate() >= -20 && gap.truncate() <= 20) {
+        if (speech != 'Move straight') {
+          speech = 'Move straight';
+          await speak('Move straight');
+        }
+      } else if (gap.truncate() > 0 && gap.truncate() < 180) {
+        if (canVibrate == true) {
+          await Vibration.vibrate();
+        }
+        if (speech != 'Turn right') {
+          speech = 'Turn right';
+          await speak('Turn right');
+        }
+      } else {
+        if (canVibrate == true) {
+          await Vibration.vibrate();
+        }
+        if (speech != 'Turn left') {
+          speech = 'Turn left';
+          await speak('Turn left');
+        }
+      }
+    });
   }
 
   Future<bool> showDestination(c_id) async {
@@ -192,7 +251,9 @@ class _QRScanPageState extends State<QRScanPage> {
                     return ListTile(
                       title: Text(circles[index].name ?? '',
                           style: TextStyle(fontWeight: FontWeight.bold)),
-                      onTap: () {
+                      onTap: () async {
+                        arAvailable =
+                            await ArCoreController.checkArCoreAvailability();
                         setState(() {
                           next = 1;
                           path = Dijkstra.findPathFromGraph(
@@ -384,7 +445,22 @@ class _QRScanPageState extends State<QRScanPage> {
   }
 
   Future<void> speak(text) async {
+    await flutterTts.awaitSpeakCompletion(true);
     await flutterTts.speak(text);
+  }
+
+  _onArCoreViewCreated(ArCoreController controller) {
+    arCoreController = controller;
+
+    final material = ArCoreMaterial(
+      color: Colors.purple,
+    );
+
+    final sphere = ArCoreSphere(materials: [material]);
+
+    final node = ArCoreNode(shape: sphere, position: Vector3(-0.5, 0.5, -3.5));
+
+    arCoreController?.addArCoreNode(node);
   }
 
   @override
@@ -405,6 +481,8 @@ class _QRScanPageState extends State<QRScanPage> {
           IconButton(
               padding: EdgeInsets.only(right: 16),
               onPressed: () async {
+                _compassSubscription?.cancel();
+                await flutterTts.stop();
                 await Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -431,34 +509,44 @@ class _QRScanPageState extends State<QRScanPage> {
                 width: MediaQuery.of(context).size.width,
                 height: MediaQuery.of(context).size.height / 1.2,
                 child: buildQrView(context)),
-            path.isNotEmpty
-                ? Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            FloatingActionButton.extended(
-                              backgroundColor: Colors.black54,
-                              foregroundColor: Colors.white,
-                              onPressed: () {
-                                speak('Navigation stop');
-                                setState(() {
-                                  result = [];
-                                  path = [];
-                                });
-                              },
-                              icon: Icon(Icons.cancel),
-                              label: Text('Stop Navigation'),
-                            ),
-                          ],
+            SizedBox(
+                width: MediaQuery.of(context).size.width,
+                height: MediaQuery.of(context).size.height / 1.2,
+                child: Visibility(
+                    visible: path.isNotEmpty && arAvailable,
+                    child:
+                        ArCoreView(onArCoreViewCreated: _onArCoreViewCreated))),
+            Visibility(
+              visible: path.isNotEmpty,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        FloatingActionButton.extended(
+                          backgroundColor: Colors.black54,
+                          foregroundColor: Colors.white,
+                          onPressed: () async {
+                            _compassSubscription?.cancel();
+                            await flutterTts.stop();
+                            speak('Navigation stop');
+                            setState(() {
+                              result = [];
+                              path = [];
+                            });
+                          },
+                          icon: Icon(Icons.cancel),
+                          label: Text('Stop Navigation'),
                         ),
-                      ),
-                    ],
-                  )
-                : Container(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ])),
           Padding(
             padding: EdgeInsets.all(8.0),
