@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_compass/flutter_compass.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -40,7 +41,7 @@ class _EditMapPageState extends State<EditMapPage> {
   dynamic externalDir = '/storage/emulated/0/Download/Qr_code';
 
   List<Circle> circles = [];
-  List<String> circles_id = [];
+  List<Circle> circles_id = [];
 
   static const double MIN_SIZE = 16.0; // Minimum circle size
   static const double MAX_SIZE = 100.0; // Maximum circle size
@@ -217,28 +218,28 @@ class _EditMapPageState extends State<EditMapPage> {
                                   '${widget.profileName} $selectedFloor'))); // Use your existing method to show the prompt
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.social_distance),
-                title: const Text('Marker Connection'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (BuildContext context) => EditConnectPage(
-                          start: circle,
-                          circles: circles,
-                        ),
-                      )) as bool;
+              // ListTile(
+              //   leading: const Icon(Icons.social_distance),
+              //   title: const Text('Marker Connection'),
+              //   onTap: () async {
+              //     Navigator.pop(context);
+              //     final result = await Navigator.push(
+              //         context,
+              //         MaterialPageRoute<void>(
+              //           builder: (BuildContext context) => EditConnectPage(
+              //             start: circle,
+              //             circles: circles,
+              //           ),
+              //         )) as bool;
 
-                  setState(() {
-                    if (!result) {
-                      showOption = result;
-                      circles_id.add(circle.id);
-                    }
-                  }); // Use your existing method to show the prompt
-                },
-              ),
+              //     setState(() {
+              //       if (!result) {
+              //         showOption = result;
+              //         circles_id.add(circle.id);
+              //       }
+              //     }); // Use your existing method to show the prompt
+              //   },
+              // ),
               ListTile(
                 leading: const Icon(Icons.delete),
                 title: const Text('Delete'),
@@ -351,6 +352,109 @@ class _EditMapPageState extends State<EditMapPage> {
           ],
         );
       },
+    );
+  }
+
+  Future<void> identifyFacingDirection(Circle c_start, Circle c_end) {
+    return showDialog(
+      barrierDismissible: false,
+      context: context,
+      builder: (_) => StreamBuilder<CompassEvent>(
+          stream: FlutterCompass.events,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Text('Error reading heading: ${snapshot.error}');
+            }
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(),
+              );
+            }
+            double? direction = snapshot.data!.heading;
+            return Dialog(
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              insetPadding: EdgeInsets.all(0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Please face the marker you want to connect',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                  SizedBox(
+                    height: 10,
+                  ),
+                  Stack(
+                    children: [
+                      SizedBox(
+                        width: MediaQuery.of(context).size.width,
+                        height: MediaQuery.of(context).size.height / 1.5,
+                        child: Image(
+                          image: uploadedImage!.image,
+                          fit: BoxFit.fill, //BoxFit.contain?
+                          alignment: Alignment.center,
+                        ),
+                      ),
+                      Positioned(
+                        left: c_start.position.dx - c_start.size,
+                        top: c_start.position.dy - c_start.size,
+                        child: Transform.rotate(
+                            angle: (direction! * (pi / 180)),
+                            child: Image.asset(
+                              'assets/navigation.png',
+                              scale: 1.1,
+                              width: c_start.size * 3,
+                              height: c_start.size * 3,
+                            )),
+                      ),
+                      Positioned(
+                        left: c_end.position.dx,
+                        top: c_end.position.dy,
+                        child: Container(
+                          width: c_end.size,
+                          height: c_end.size,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      )
+                    ],
+                  ),
+                  SizedBox(
+                    height: 10,
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                          child: Text('Cancel')),
+                      ElevatedButton(
+                          onPressed: () {
+                            c_start.connected_nodes[c_end.id] = {
+                              'distance': 0,
+                              'direction': direction
+                            };
+                            c_end.connected_nodes[c_start.id] = {
+                              'distance': 0,
+                              'direction': direction > 0
+                                  ? direction - 180
+                                  : direction + 180
+                            };
+                            Navigator.of(context).pop();
+                          },
+                          child: Text('Save')),
+                    ],
+                  )
+                ],
+              ),
+            );
+          }),
     );
   }
 
@@ -559,15 +663,26 @@ class _EditMapPageState extends State<EditMapPage> {
                           if (showOption) {
                             _showCircleOptions(circle);
                           } else {
-                            setState(() {
-                              if (circle.selected == false) {
-                                circles_id.add(circle.id);
-                                circle.selected = true;
-                              } else {
-                                circles_id.remove(circle.id);
-                                circle.selected = false;
+                            if (circle.selected == false) {
+                              circles_id.add(circle);
+                              circle.selected = true;
+                            } else {
+                              circles_id.remove(circle);
+                              circle.selected = false;
+                            }
+
+                            if (circles_id.length == 2) {
+                              //todo: show dialog
+                              await identifyFacingDirection(
+                                  circles_id[0], circles_id[1]);
+                              for (var c in circles) {
+                                c.selected = false;
                               }
-                            });
+                              showOption = true;
+                              circles_id = [];
+                            }
+
+                            setState(() {});
                           }
                         },
                         onLongPress: () {
@@ -634,80 +749,76 @@ class _EditMapPageState extends State<EditMapPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   ElevatedButton(
-                    onPressed: () async {
-                      if (showOption) {
-                        Offset position = Offset.zero;
-                        bool touched = false;
-                        await showDialog(
-                          context: context,
-                          builder: (_) => Dialog(
-                            backgroundColor: Colors.transparent,
-                            insetPadding: EdgeInsets.all(0),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                    decoration: BoxDecoration(
-                                        color: Colors.transparent),
-                                    child: Text(
-                                      "Select a location to add a node",
-                                      style: TextStyle(
-                                          backgroundColor: Colors.transparent,
-                                          fontSize: 25,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white),
-                                    )),
-                                GestureDetector(
-                                  onTapDown: (details) {
-                                    position = Offset(
-                                        details.localPosition.dx - 15,
-                                        details.localPosition.dy - 15);
-                                    Navigator.pop(context);
-                                    touched = true;
-                                  },
-                                  child: SizedBox(
-                                    width: MediaQuery.of(context).size.width,
-                                    height: MediaQuery.of(context).size.height /
-                                        1.5,
-                                    child: Image(
-                                      image: uploadedImage!.image,
-                                      fit: BoxFit.fill, //BoxFit.contain?
-                                      alignment: Alignment.center,
+                    onPressed: showOption
+                        ? () async {
+                            Offset position = Offset.zero;
+                            bool touched = false;
+                            await showDialog(
+                              context: context,
+                              builder: (_) => Dialog(
+                                backgroundColor: Colors.transparent,
+                                insetPadding: EdgeInsets.all(0),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                        decoration: BoxDecoration(
+                                            color: Colors.transparent),
+                                        child: Text(
+                                          "Select a location to add a node",
+                                          style: TextStyle(
+                                              backgroundColor:
+                                                  Colors.transparent,
+                                              fontSize: 25,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white),
+                                        )),
+                                    GestureDetector(
+                                      onTapDown: (details) {
+                                        position = Offset(
+                                            details.localPosition.dx - 15,
+                                            details.localPosition.dy - 15);
+                                        Navigator.pop(context);
+                                        touched = true;
+                                      },
+                                      child: SizedBox(
+                                        width:
+                                            MediaQuery.of(context).size.width,
+                                        height:
+                                            MediaQuery.of(context).size.height /
+                                                1.5,
+                                        child: Image(
+                                          image: uploadedImage!.image,
+                                          fit: BoxFit.fill, //BoxFit.contain?
+                                          alignment: Alignment.center,
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          ),
-                        );
+                              ),
+                            );
 
-                        if (touched) {
-                          Circle circle = Circle(
-                              position, DateTime.now().toIso8601String());
-                          await Navigator.push(
-                              context,
-                              MaterialPageRoute<void>(
-                                  builder: (BuildContext context) => AddNodePage(
-                                      circle: circle,
-                                      location:
-                                          '${widget.profileName} $selectedFloor')));
-                          if (circle.name!.isNotEmpty) {
-                            setState(() {
-                              circles.add(circle);
-                            });
+                            if (touched) {
+                              Circle circle = Circle(
+                                  position, DateTime.now().toIso8601String());
+                              await Navigator.push(
+                                  context,
+                                  MaterialPageRoute<void>(
+                                      builder: (BuildContext context) =>
+                                          AddNodePage(
+                                              circle: circle,
+                                              location:
+                                                  '${widget.profileName} $selectedFloor')));
+                              if (circle.name!.isNotEmpty) {
+                                setState(() {
+                                  circles.add(circle);
+                                });
+                              }
+                            }
                           }
-                        }
-                      } else {
-                        showOption = true;
-                        setState(() {
-                          for (var c in circles) {
-                            c.selected = false;
-                          }
-                          circles_id = [];
-                        });
-                      }
-                    },
-                    child: showOption ? Text('Add Node') : Text('Cancel'),
+                        : null,
+                    child: Text('Add Node'),
                   ),
                   ElevatedButton(
                     onPressed: () {
@@ -719,29 +830,11 @@ class _EditMapPageState extends State<EditMapPage> {
                           showOption = false;
                         } else {
                           showOption = true;
-                          for (var i = 0; i < circles_id.length; i++) {
-                            final current_circle = circles.firstWhere(
-                                (element) => element.id == circles_id[i]);
-                            if (i + 1 != circles_id.length) {
-                              current_circle
-                                  .connected_nodes[circles_id[i + 1]] = {
-                                'distance': 0,
-                                'direction': '-'
-                              };
-                            }
-                            if (i != 0) {
-                              current_circle
-                                  .connected_nodes[circles_id[i - 1]] = {
-                                'distance': 0,
-                                'direction': '-'
-                              };
-                            }
-                          }
                           circles_id = [];
                         }
                       });
                     },
-                    child: showOption ? Text('Connect Nodes') : Text('Save'),
+                    child: showOption ? Text('Connect Nodes') : Text('Cancel'),
                   ),
                 ],
               ),
