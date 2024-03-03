@@ -19,7 +19,6 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:marker_indoor_nav/admin_account/auth.dart';
 import 'package:marker_indoor_nav/admin_account/login_page.dart';
-import 'package:marker_indoor_nav/localization/result_page.dart';
 import 'package:marker_indoor_nav/mapping/building_profile.dart';
 import 'package:marker_indoor_nav/mapping/map.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
@@ -514,7 +513,7 @@ class _QRScanPageState extends State<QRScanPage> {
                 width: MediaQuery.of(context).size.width,
                 height: MediaQuery.of(context).size.height / 1.2,
                 child: Visibility(
-                    visible: path.isNotEmpty && arAvailable!,
+                    visible: path.isNotEmpty && arAvailable,
                     child:
                         ArCoreView(onArCoreViewCreated: _onArCoreViewCreated))),
             Visibility(

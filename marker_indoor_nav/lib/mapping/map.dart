@@ -12,8 +12,6 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:marker_indoor_nav/mapping/add_node_page.dart';
 import 'dart:convert';
 
-import 'package:marker_indoor_nav/mapping/edit_connection_page.dart';
-
 // Firebase setup and function
 
 class EditMapPage extends StatefulWidget {
