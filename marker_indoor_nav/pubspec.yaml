@@ -52,9 +52,15 @@ dependencies:
   firebase_auth: ^4.15.3
   flutter_tts: ^3.8.5
   vibration: ^1.8.4
-  arcore_flutter_plugin: ^0.1.0
   vector_math: ^2.1.4
-  opencv_dart: ^0.5.0
+  opencv_dart: ^0.6.3
+  camera: ^0.10.5+9
+  ffi: ^2.1.2
+  flutter_aruco_detector: ^0.0.1
+
+
+  
+  
 
 dev_dependencies:
   flutter_test:

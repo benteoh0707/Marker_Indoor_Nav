@@ -18,9 +18,17 @@ class EditProfilePage extends StatefulWidget {
 class _EditProfilePageState extends State<EditProfilePage> {
   final _firestore = FirebaseFirestore.instance;
   final GlobalKey _alertKey = GlobalKey();
+  int num_profile = 0;
+  List profileManager = [];
 
   Future<List<Map<String, dynamic>>> fetchProfiles() async {
     QuerySnapshot snapshot = await _firestore.collection('profiles').get();
+    final Manager_doc = await _firestore
+        .collection('profileManager')
+        .doc('profileManager')
+        .get();
+
+    profileManager = Manager_doc.data()?['deleted_id'];
 
     return snapshot.docs.map((doc) {
       final doc_data = doc.data() as Map<String, dynamic>;
@@ -82,12 +90,26 @@ class _EditProfilePageState extends State<EditProfilePage> {
       return false;
     }
 
+    if (!(numberOfFloors <= 24)) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Please enter less than 30 number for floors.'),
+      ));
+      return false;
+    }
+
     try {
       // Using Firestore
-      await _firestore.collection("profiles").add({
+      int id = num_profile + 500;
+      if (profileManager.isNotEmpty) {
+        id = profileManager.removeLast() as int;
+        await _firestore
+            .collection('profileManager')
+            .doc('profileManager')
+            .set({'deleted_id': profileManager});
+      }
+      await _firestore.collection("profiles").doc(id.toString()).set({
         'profileName': profileName,
         'numberOfFloors': numberOfFloors,
-        'timestamp': FieldValue.serverTimestamp(),
       });
 
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -172,7 +194,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   deleteProfile(String id, String profName, int NoFloor) async {
+    profileManager.add(int.parse(id));
+    await _firestore
+        .collection('profileManager')
+        .doc('profileManager')
+        .set({'deleted_id': profileManager});
     await _firestore.collection("profiles").doc(id).delete();
+
     for (int i = 1; i <= NoFloor; i++) {
       _firestore
           .collection('maps')
@@ -487,9 +515,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
             return Center(child: Text('Error: ${snapshot.error}'));
           } else {
             final profiles = snapshot.data;
+            num_profile = profiles?.length ?? 0;
 
             return ListView.builder(
-              itemCount: profiles?.length ?? 0,
+              itemCount: num_profile,
               itemBuilder: (context, index) {
                 final profile = profiles?[index];
                 return Slidable(
@@ -527,6 +556,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                           context,
                           MaterialPageRoute(
                             builder: (context) => EditMapPage(
+                              profileID: profile?['id'],
                               profileName: profile?['profileName'],
                               numberOfFloors: profile?['numberOfFloors'],
                             ),

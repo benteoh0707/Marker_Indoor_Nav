@@ -4,27 +4,23 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
-//import 'dart:math';
-import 'package:arcore_flutter_plugin/arcore_flutter_plugin.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 import 'package:dijkstra/dijkstra.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-//import 'package:dijkstra/dijkstra.dart';
-//import 'package:firebase_storage/firebase_storage.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-//import 'package:flutter_compass/flutter_compass.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:marker_indoor_nav/admin_account/auth.dart';
 import 'package:marker_indoor_nav/admin_account/login_page.dart';
+//import 'package:marker_indoor_nav/localization/aruco.dart';
 import 'package:marker_indoor_nav/mapping/building_profile.dart';
 import 'package:marker_indoor_nav/mapping/map.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
 import 'package:vibration/vibration.dart';
-import 'package:vector_math/vector_math_64.dart' hide Colors;
-//import 'package:collection/collection.dart';
 
 class QRScanPage extends StatefulWidget {
   const QRScanPage({super.key});
@@ -36,7 +32,7 @@ class QRScanPage extends StatefulWidget {
 class _QRScanPageState extends State<QRScanPage> {
   final qrKey = GlobalKey(debugLabel: 'QR');
   QRViewController? controller;
-  ArCoreController? arCoreController;
+  //ArCoreController? arCoreController;
   //Circle? start;
   Map<String, dynamic> floorGraph = {};
   List<Circle> circles = [];
@@ -252,8 +248,8 @@ class _QRScanPageState extends State<QRScanPage> {
                       title: Text(circles[index].name ?? '',
                           style: TextStyle(fontWeight: FontWeight.bold)),
                       onTap: () async {
-                        arAvailable =
-                            await ArCoreController.checkArCoreAvailability();
+                        // arAvailable =
+                        //     await ArCoreController.checkArCoreAvailability();
                         setState(() {
                           next = 1;
                           path = Dijkstra.findPathFromGraph(
@@ -449,20 +445,6 @@ class _QRScanPageState extends State<QRScanPage> {
     await flutterTts.speak(text);
   }
 
-  _onArCoreViewCreated(ArCoreController controller) {
-    arCoreController = controller;
-
-    final material = ArCoreMaterial(
-      color: Colors.purple,
-    );
-
-    final sphere = ArCoreSphere(materials: [material]);
-
-    final node = ArCoreNode(shape: sphere, position: Vector3(-0.5, 0.5, -3.5));
-
-    arCoreController?.addArCoreNode(node);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -491,6 +473,7 @@ class _QRScanPageState extends State<QRScanPage> {
                             : EditProfilePage()));
                 result = [];
                 path = [];
+
                 setState(() {});
               },
               icon: Icon(
@@ -509,13 +492,13 @@ class _QRScanPageState extends State<QRScanPage> {
                 width: MediaQuery.of(context).size.width,
                 height: MediaQuery.of(context).size.height / 1.2,
                 child: buildQrView(context)),
-            SizedBox(
-                width: MediaQuery.of(context).size.width,
-                height: MediaQuery.of(context).size.height / 1.2,
-                child: Visibility(
-                    visible: path.isNotEmpty && arAvailable,
-                    child:
-                        ArCoreView(onArCoreViewCreated: _onArCoreViewCreated))),
+            // SizedBox(
+            //     width: MediaQuery.of(context).size.width,
+            //     height: MediaQuery.of(context).size.height / 1.2,
+            //     child: Visibility(
+            //         visible: path.isNotEmpty && arAvailable,
+            //         child:
+            //             ArCoreView(onArCoreViewCreated: _onArCoreViewCreated))),
             Visibility(
               visible: path.isNotEmpty,
               child: Column(
