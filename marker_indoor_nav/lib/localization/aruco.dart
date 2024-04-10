@@ -225,14 +225,14 @@ class _DetectionPageState extends State<DetectionPage>
     startNavigation(markerID, profileID, floorID);
   }
 
-  startNavigation(int markerID, int profileID, int floorID) async {
+  Future<void> startNavigation(int markerID, int profileID, int floorID) async {
     if (result.isEmpty && ar_path.isEmpty && qr_path.isEmpty) {
       //first time detected
 
       speak('Marker Detected');
 
       await _camController.stopImageStream();
-      await _camController.pausePreview();
+      _camController.pausePreview();
 
       showDialog(
           context: context,
@@ -324,8 +324,8 @@ class _DetectionPageState extends State<DetectionPage>
           });
         } else if (markerID == int.parse(ar_path[nextDest])) {
           setState(() {
-            cur_c = circles
-                .firstWhere((circle) => circle.marker_id == ar_path[nextDest]);
+            cur_c = circles.firstWhere(
+                (circle) => circle.marker_id == int.parse(ar_path[nextDest]));
             result['markerID'] = markerID;
             nextDest++;
           });
@@ -397,6 +397,7 @@ class _DetectionPageState extends State<DetectionPage>
   }
 
   Future<bool> showDestination(c_marker_id, c_id) async {
+    await speak('choose your destination');
     await showDialog(
         context: context,
         builder: (_) => AlertDialog(
@@ -417,6 +418,7 @@ class _DetectionPageState extends State<DetectionPage>
                       title: Text(circles[index].name ?? '',
                           style: TextStyle(fontWeight: FontWeight.bold)),
                       onTap: () async {
+                        speak(circles[index].name);
                         setState(() {
                           nextDest = 1;
                           ar_path = Dijkstra.findPathFromGraph(ar_floorGraph,
@@ -524,12 +526,13 @@ class _DetectionPageState extends State<DetectionPage>
       ),
       body: Column(
         children: [
-          Expanded(
-            child: Stack(
-              children: [
-                SizedBox(
-                    width: MediaQuery.of(context).size.width,
-                    height: MediaQuery.of(context).size.height / 1.2,
+          SizedBox(
+            height: MediaQuery.of(context).size.height / 1.2,
+            child: Expanded(
+              child: Stack(
+                children: [
+                  SizedBox(
+                    height: MediaQuery.of(context).size.height,
                     child: FutureBuilder<void>(
                         future: _initializeControllerFuture,
                         builder: (context, snapshot) {
@@ -542,45 +545,47 @@ class _DetectionPageState extends State<DetectionPage>
                             return const Center(
                                 child: CircularProgressIndicator());
                           }
-                        })),
-                ..._arucos.map(
-                  (aru) => DetectionsLayer(
-                    arucos: aru,
+                        }),
                   ),
-                ),
-                Visibility(
-                  visible: ar_path.isNotEmpty && qr_path.isNotEmpty,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            FloatingActionButton.extended(
-                              backgroundColor: Colors.black54,
-                              foregroundColor: Colors.white,
-                              onPressed: () async {
-                                _compassSubscription?.cancel();
-                                await flutterTts.stop();
-                                speak('Navigation stop');
-                                setState(() {
-                                  result = {};
-                                  ar_path = [];
-                                  qr_path = [];
-                                });
-                              },
-                              icon: Icon(Icons.cancel),
-                              label: Text('Stop Navigation'),
-                            ),
-                          ],
+                  ..._arucos.map(
+                    (aru) => DetectionsLayer(
+                      arucos: aru,
+                    ),
+                  ),
+                  Visibility(
+                    visible: ar_path.isNotEmpty && qr_path.isNotEmpty,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              FloatingActionButton.extended(
+                                backgroundColor: Colors.black54,
+                                foregroundColor: Colors.white,
+                                onPressed: () async {
+                                  _compassSubscription?.cancel();
+                                  await flutterTts.stop();
+                                  speak('Navigation stop');
+                                  setState(() {
+                                    result = {};
+                                    ar_path = [];
+                                    qr_path = [];
+                                  });
+                                },
+                                icon: Icon(Icons.cancel),
+                                label: Text('Stop Navigation'),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           Row(
