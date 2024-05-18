@@ -84,9 +84,7 @@ class _EditMapPageState extends State<EditMapPage> {
       Map<String, num> ar_temp = {};
       for (var connect in circle.connected_nodes.keys) {
         num distance = circle.connected_nodes[connect]['distance'];
-        print('here');
         int connect_MarkerID = circle.connected_nodes[connect]['markerID'];
-        print('here $connect_MarkerID');
         qr_temp[connect] = distance;
         ar_temp[connect_MarkerID.toString()] = distance;
       }
@@ -205,25 +203,35 @@ class _EditMapPageState extends State<EditMapPage> {
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              ListTile(
-                leading: const Icon(Icons.drag_handle),
-                title:
-                    circle.selected == false ? Text('Move') : Text('Unmoved'),
-                onTap: () {
-                  Navigator.pop(context);
-                  // Set circle to moving state, this will allow user to drag the circle
-                  setState(() {
-                    if (circle.selected == false) {
-                      for (var c in circles) {
-                        c.selected = false;
-                      }
-                      circle.selected = true;
-                    } else {
-                      circle.selected = false;
-                    }
-                  });
-                },
-              ),
+              circle.connected_nodes.isEmpty
+                  ? ListTile(
+                      leading: const Icon(Icons.drag_handle),
+                      title: circle.selected == false
+                          ? Text('Move')
+                          : Text('Unmoved'),
+                      onTap: circle.connected_nodes.isEmpty
+                          ? () {
+                              Navigator.pop(context);
+                              // Set circle to moving state, this will allow user to drag the circle
+                              setState(() {
+                                if (circle.selected == false) {
+                                  for (var c in circles) {
+                                    c.selected = false;
+                                  }
+                                  circle.selected = true;
+                                } else {
+                                  circle.selected = false;
+                                }
+                              });
+                            }
+                          : () {
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(SnackBar(
+                                content:
+                                    Text('Connected Node cannot be moved.'),
+                              ));
+                            })
+                  : Container(),
               ListTile(
                 leading: const Icon(Icons.edit),
                 title: const Text('Edit'),
@@ -460,6 +468,47 @@ class _EditMapPageState extends State<EditMapPage> {
     );
   }
 
+  List<Widget> edgesOpt() {
+    List<Widget> list_edges = [];
+    for (Circle start in circles) {
+      for (String dest_id in start.connected_nodes.keys) {
+        Circle end = circles.firstWhere((element) => element.id == dest_id);
+        Offset start_mid = Offset(start.position.dx + start.size / 2,
+            start.position.dy + start.size / 2);
+        Offset end_mid = Offset(
+            end.position.dx + end.size / 2, end.position.dy + end.size / 2);
+        double box_width = (start_mid.dx - end_mid.dx).abs();
+        double box_height = (start_mid.dy - end_mid.dy).abs();
+
+        Widget opt = Positioned(
+          left: (box_width / 2) + min(start_mid.dx, end_mid.dx) - 8,
+          top: (box_height / 2) + min(start_mid.dy, end_mid.dy) - 8,
+          child: GestureDetector(
+            onTap: () {
+              showEdgeOptions(start, end);
+            },
+            child: Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.red, width: 3),
+                shape: BoxShape.circle,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        );
+
+        Widget edge = CustomPaint(
+          painter: drawEdges(start, end),
+        );
+        list_edges.addAll([edge, opt]);
+      }
+    }
+
+    return list_edges;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -614,67 +663,7 @@ class _EditMapPageState extends State<EditMapPage> {
                                   ),
                                 ),
                               ),
-                        ...circles.map((start) {
-                          for (var dest_id in start.connected_nodes.keys) {
-                            Circle end = circles
-                                .firstWhere((element) => element.id == dest_id);
-
-                            return CustomPaint(
-                              painter: drawEdges(start, end),
-                            );
-                          }
-
-                          return Divider(
-                            color: Colors.transparent,
-                            thickness: 0,
-                          );
-                        }),
-                        ...circles.map((start) {
-                          for (var dest_id in start.connected_nodes.keys) {
-                            Circle end = circles
-                                .firstWhere((element) => element.id == dest_id);
-
-                            Offset start_mid = Offset(
-                                start.position.dx + start.size / 2,
-                                start.position.dy + start.size / 2);
-                            Offset end_mid = Offset(
-                                end.position.dx + end.size / 2,
-                                end.position.dy + end.size / 2);
-                            double box_width =
-                                (start_mid.dx - end_mid.dx).abs();
-                            double box_height =
-                                (start_mid.dy - end_mid.dy).abs();
-
-                            return Positioned(
-                              left: (box_width / 2) +
-                                  min(start_mid.dx, end_mid.dx) -
-                                  8,
-                              top: (box_height / 2) +
-                                  min(start_mid.dy, end_mid.dy) -
-                                  8,
-                              child: GestureDetector(
-                                onTap: () {
-                                  showEdgeOptions(start, end);
-                                },
-                                child: Container(
-                                  width: 16,
-                                  height: 16,
-                                  decoration: BoxDecoration(
-                                    border:
-                                        Border.all(color: Colors.red, width: 3),
-                                    shape: BoxShape.circle,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            );
-                          }
-
-                          return Divider(
-                            color: Colors.transparent,
-                            thickness: 0,
-                          );
-                        }),
+                        ...edgesOpt(),
                         ...circles.map((circle) {
                           return Positioned(
                             left: circle.position.dx,
@@ -706,18 +695,26 @@ class _EditMapPageState extends State<EditMapPage> {
                                   setState(() {});
                                 }
                               },
-                              onLongPress: () {
-                                setState(() {
-                                  if (circle.selected == false) {
-                                    for (var c in circles) {
-                                      c.selected = false;
+                              onLongPress: circle.connected_nodes.isEmpty
+                                  ? () {
+                                      setState(() {
+                                        if (circle.selected == false) {
+                                          for (var c in circles) {
+                                            c.selected = false;
+                                          }
+                                          circle.selected = true;
+                                        } else {
+                                          circle.selected = false;
+                                        }
+                                      });
                                     }
-                                    circle.selected = true;
-                                  } else {
-                                    circle.selected = false;
-                                  }
-                                });
-                              },
+                                  : () {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(SnackBar(
+                                        content: Text(
+                                            'Connected Node cannot be moved.'),
+                                      ));
+                                    },
                               onPanUpdate: (details) {
                                 if (circle.selected == true) {
                                   double dx = 0, dy = 0;
@@ -772,7 +769,7 @@ class _EditMapPageState extends State<EditMapPage> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         ElevatedButton(
-                          onPressed: showOption
+                          onPressed: (showOption && hasImage)
                               ? () async {
                                   Offset position = Offset.zero;
                                   bool touched = false;
@@ -857,19 +854,21 @@ class _EditMapPageState extends State<EditMapPage> {
                           child: Text('Add Node'),
                         ),
                         ElevatedButton(
-                          onPressed: () {
-                            setState(() {
-                              for (var c in circles) {
-                                c.selected = false;
-                              }
-                              if (showOption) {
-                                showOption = false;
-                              } else {
-                                showOption = true;
-                                circles_id = [];
-                              }
-                            });
-                          },
+                          onPressed: hasImage
+                              ? () {
+                                  setState(() {
+                                    for (var c in circles) {
+                                      c.selected = false;
+                                    }
+                                    if (showOption) {
+                                      showOption = false;
+                                    } else {
+                                      showOption = true;
+                                      circles_id = [];
+                                    }
+                                  });
+                                }
+                              : null,
                           child: showOption
                               ? Text('Connect Nodes')
                               : Text('Cancel'),

@@ -1,4 +1,4 @@
-// ignore_for_file: library_private_types_in_public_api, prefer_const_constructors, non_constant_identifier_names, use_build_context_synchronously
+// ignore_for_file: library_private_types_in_public_api, prefer_const_constructors, non_constant_identifier_names, use_build_context_synchronously, avoid_print
 
 import 'dart:async';
 import 'dart:convert';
@@ -7,7 +7,9 @@ import 'dart:io';
 import 'dart:math';
 import 'package:camera/camera.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:collection/collection.dart';
 import 'package:dijkstra/dijkstra.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_aruco_detector/aruco_detector.dart';
 import 'package:flutter_compass/flutter_compass.dart';
@@ -16,6 +18,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:marker_indoor_nav/admin_account/auth.dart';
 import 'package:marker_indoor_nav/admin_account/login_page.dart';
 import 'package:marker_indoor_nav/localization/layer.dart';
+import 'package:marker_indoor_nav/localization/scan_qr_page.dart';
 import 'package:marker_indoor_nav/mapping/building_profile.dart';
 import 'package:marker_indoor_nav/mapping/map.dart';
 import 'package:vibration/vibration.dart';
@@ -32,11 +35,13 @@ class _DetectionPageState extends State<DetectionPage>
   late CameraController _camController;
   late Future<void> _initializeControllerFuture;
   late ArucoDetectorAsync _arucoDetector;
+  CameraDescription? desc;
   int _camFrameRotation = 0;
   double _camFrameToScreenScale = 0;
   int _lastRun = 0;
   bool _detectionInProgress = false;
   List<List<double>> _arucos = List.empty();
+  Orientation? screen_orient;
 
   FlutterTts flutterTts = FlutterTts();
   Map<String, dynamic> ar_floorGraph = {}, qr_floorGraph = {};
@@ -44,11 +49,14 @@ class _DetectionPageState extends State<DetectionPage>
   Map<String, int?> result = {}; //markerID, profileID, floorID
   List ar_path = [], qr_path = [];
   String? profileName;
+  String? dest_qr_id;
   int? dest_marker_id;
   String? dest_name;
   int nextDest = 1;
   Circle? cur_c;
   StreamSubscription<CompassEvent>? _compassSubscription;
+  bool skipfirstScan = false;
+  bool onGuidance = false, onNavigation = false;
 
   @override
   void initState() {
@@ -82,6 +90,11 @@ class _DetectionPageState extends State<DetectionPage>
     super.dispose();
   }
 
+  @override
+  void didChangeMetrics() {
+    setState(() {});
+  }
+
   Future<void> initCamera() async {
     final cameras = await availableCameras();
     var idx =
@@ -90,11 +103,11 @@ class _DetectionPageState extends State<DetectionPage>
       dv.log("No Back camera found - weird");
       return;
     }
-
-    var desc = cameras[idx];
-    _camFrameRotation = Platform.isAndroid ? desc.sensorOrientation : 0;
+    screen_orient = MediaQuery.of(context).orientation;
+    desc = cameras[idx];
+    _camFrameRotation = (Platform.isAndroid ? desc?.sensorOrientation : 0)!;
     _camController = CameraController(
-      desc,
+      desc!,
       ResolutionPreset.high, // 720p
       enableAudio: false,
       imageFormatGroup: Platform.isAndroid
@@ -116,6 +129,11 @@ class _DetectionPageState extends State<DetectionPage>
   }
 
   void _processCameraImage(CameraImage image) async {
+    if (skipfirstScan) {
+      skipfirstScan = false;
+      return;
+    }
+
     if (_detectionInProgress ||
         !mounted ||
         DateTime.now().millisecondsSinceEpoch - _lastRun < 30) {
@@ -126,10 +144,13 @@ class _DetectionPageState extends State<DetectionPage>
     // NOTE!!!! We assume camera frame takes the entire screen width, if that's not the case
     // (like if camera is landscape or the camera frame is limited to some area) then you will
     // have to find the correct scale factor somehow else
-    if (_camFrameToScreenScale == 0) {
-      var w = (_camFrameRotation == 0 || _camFrameRotation == 180)
-          ? image.width
-          : image.height;
+
+    if (_camFrameToScreenScale == 0 ||
+        screen_orient != MediaQuery.of(context).orientation) {
+      screen_orient = MediaQuery.of(context).orientation;
+
+      var w =
+          (screen_orient == Orientation.landscape) ? image.width : image.height;
       _camFrameToScreenScale = MediaQuery.of(context).size.width / w;
     }
 
@@ -152,87 +173,108 @@ class _DetectionPageState extends State<DetectionPage>
       return;
     }
 
-    if (res.length == 3) {
+    if (res.length >= 3) {
       detectionHandling(res);
+      if ((res[0]['corners'].length / 8) != (res[0]['corners'].length ~/ 8)) {
+        dv.log(
+            'Got invalid response from ArucoDetector, number of coords is ${res[0]['corners'].length} and does not represent complete arucos with 4 corners');
+        return;
+      }
+
+      // //convert arucos from camera frame coords to screen coords
+
+      List<List<double>> arucos = [];
+
+      if (screen_orient == Orientation.portrait) {
+        for (var r in res) {
+          List<double> corners = List<double>.from(r['corners']);
+
+          final aruco = corners
+              .map((double x) => x * _camFrameToScreenScale)
+              .toList(growable: false);
+
+          arucos.add(aruco);
+        }
+      }
+      setState(() {
+        _arucos = arucos;
+      });
     }
-
-    // // Check that the number of coords we got divides by 8 exactly, each aruco has 8 coords (4 corners x/y)
-    if ((res[0]['corners'].length / 8) != (res[0]['corners'].length ~/ 8)) {
-      dv.log(
-          'Got invalid response from ArucoDetector, number of coords is ${res[0]['corners'].length} and does not represent complete arucos with 4 corners');
-      return;
-    }
-
-    // //convert arucos from camera frame coords to screen coords
-
-    List<List<double>> arucos = [];
-    for (var r in res) {
-      List<double> corners = List<double>.from(r['corners']);
-
-      final aruco = corners
-          .map((double x) => x * _camFrameToScreenScale)
-          .toList(growable: false);
-
-      arucos.add(aruco);
-    }
-
-    setState(() {
-      _arucos = arucos;
-    });
   }
 
   Future<void> detectionHandling(List detectResult) async {
     int? markerID, profileID, floorID;
-    Offset? start, end;
+    List markerInfo = [];
+    double marker_area = 0;
 
     for (var r in detectResult) {
       int id = r['markerId'];
       if (id < 500) {
         //marker
-        markerID = id;
+        markerInfo.add(r);
       } else if (id >= 500 && id < 1000) {
         //profile
         profileID = id;
-        double x = r['headPoint']['x'] * _camFrameToScreenScale;
-        double y = r['headPoint']['y'] * _camFrameToScreenScale;
-        start = Offset(x, y);
       } else {
         //floor
         floorID = id;
-        double x = r['corners'][2] * _camFrameToScreenScale;
-        double y = r['corners'][3] * _camFrameToScreenScale;
-        end = Offset(x, y);
       }
+    }
+
+    if (markerInfo.isNotEmpty) {
+      for (var marker in markerInfo) {
+        double start_x = marker['headPoint']['x'] * _camFrameToScreenScale;
+        double start_y = marker['headPoint']['y'] * _camFrameToScreenScale;
+        double end_x = marker['corners'][2] * _camFrameToScreenScale;
+        double end_y = marker['corners'][3] * _camFrameToScreenScale;
+
+        Offset start = Offset(start_x, start_y);
+        Offset end = Offset(end_x, end_y);
+
+        double area = ((end - start) * 2).distanceSquared;
+        if (area > marker_area) {
+          marker_area = area;
+          markerID = marker['markerId'];
+        }
+      }
+    } else {
+      return;
     }
 
     if (markerID == null || profileID == null || floorID == null) {
       return;
     }
 
-    if (start != null && end != null) {
-      double area = (end - start).distanceSquared;
-      num screen = pow(MediaQuery.of(context).size.width, 2);
-      double percent = (area / screen) * 100;
-      //print('area: $area ;percentage : $percent');
+    if (marker_area > 0) {
+      double min_screen = min(MediaQuery.of(context).size.width,
+          MediaQuery.of(context).size.height);
+      num screen = pow(min_screen, 2);
+      double percent = (marker_area / screen) * 100;
+      print('markerid: $markerID area: $marker_area ;percentage : $percent');
 
-      if (percent < 0.6) {
+      if (percent < 0.3) {
         return;
       }
     } else {
       return;
     }
 
-    startNavigation(markerID, profileID, floorID);
+    if (!onNavigation) {
+      startNavigation(markerID, profileID, floorID)
+          .whenComplete(() => onNavigation = false);
+    }
   }
 
   Future<void> startNavigation(int markerID, int profileID, int floorID) async {
+    onNavigation = true;
+
     if (result.isEmpty && ar_path.isEmpty && qr_path.isEmpty) {
       //first time detected
 
-      speak('Marker Detected');
+      await speak('Marker Detected');
 
       await _camController.stopImageStream();
-      _camController.pausePreview();
+      await _camController.pausePreview();
 
       showDialog(
           context: context,
@@ -261,14 +303,21 @@ class _DetectionPageState extends State<DetectionPage>
           }
         }
 
-        if (ar_path.isNotEmpty && qr_path.isNotEmpty) {
+        if (ar_path.isNotEmpty && qr_path.isNotEmpty && !onGuidance) {
           //todo: add direction
           await getDirection(
               cur_c?.connected_nodes[qr_path[nextDest]]['direction']);
+        } else {
+          setState(() {
+            skipfirstScan = true;
+          });
         }
       } else {
         Navigator.of(context).pop();
         speak('Unknown Marker');
+        setState(() {
+          skipfirstScan = true;
+        });
       }
 
       await _camController.resumePreview();
@@ -277,16 +326,20 @@ class _DetectionPageState extends State<DetectionPage>
     } else if (ar_path.isNotEmpty &&
         qr_path.isNotEmpty &&
         markerID != result['markerID']) {
-      _compassSubscription?.cancel();
       await flutterTts.stop();
+      await _compassSubscription
+          ?.cancel()
+          .whenComplete(() => onGuidance = false);
 
       if (result['profileID'] == profileID && result['floorID'] == floorID) {
         //detected another marker
 
         if (markerID == dest_marker_id) {
+          await speak("Stop");
           //reach destination
           await _camController.stopImageStream();
           _camController.pausePreview();
+          skipfirstScan = true;
           speak(
               'You have reach your destination,$profileName Floor ${result['floorID']! - 999} $dest_name');
 
@@ -297,16 +350,18 @@ class _DetectionPageState extends State<DetectionPage>
           await showDialog(
             context: context,
             builder: (BuildContext context) {
-              return AlertDialog(
-                title: Text('Destination Arrived'),
-                actions: [
-                  TextButton(
-                    child: Text("Continue"),
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
-                  ),
-                ],
+              return ExcludeSemantics(
+                child: AlertDialog(
+                  title: Text('Destination Arrived'),
+                  actions: [
+                    TextButton(
+                      child: Text("Continue"),
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                    ),
+                  ],
+                ),
               );
             },
           ).then((value) async {
@@ -323,32 +378,30 @@ class _DetectionPageState extends State<DetectionPage>
             qr_path = [];
           });
         } else if (markerID == int.parse(ar_path[nextDest])) {
-          setState(() {
-            cur_c = circles.firstWhere(
-                (circle) => circle.marker_id == int.parse(ar_path[nextDest]));
-            result['markerID'] = markerID;
-            nextDest++;
-          });
-          await speak(
-              'Reach $profileName Floor ${result['floorID']! - 999} ${cur_c?.name}');
+          await speak("Reach a new checkpoint");
+          cur_c = circles.firstWhere(
+              (circle) => circle.marker_id == int.parse(ar_path[nextDest]));
+          result['markerID'] = markerID;
+          nextDest++;
+          setState(() {});
         } else if (ar_floorGraph.keys.contains(markerID.toString())) {
           //reroute
-          speak('Reach the wrong next point, Rerouting');
+          await speak('Stop, rerouting');
 
-          setState(() {
-            nextDest = 1;
-            ar_path = Dijkstra.findPathFromGraph(
-                ar_floorGraph, markerID.toString(), dest_marker_id.toString());
-            cur_c =
-                circles.firstWhere((circle) => circle.marker_id == markerID);
-            result['markerID'] = markerID;
-          });
+          nextDest = 1;
+          cur_c = circles.firstWhere((circle) => circle.marker_id == markerID);
 
-          speak(
-              'Reroute, Currently at $profileName Floor ${result['floorID']! - 999} ${cur_c?.name}');
+          ar_path = Dijkstra.findPathFromGraph(
+              ar_floorGraph, markerID.toString(), dest_marker_id.toString());
+          qr_path =
+              Dijkstra.findPathFromGraph(qr_floorGraph, cur_c?.id, dest_qr_id);
+
+          result['markerID'] = markerID;
+
+          setState(() {});
         }
 
-        if (ar_path.isNotEmpty && qr_path.isNotEmpty) {
+        if (ar_path.isNotEmpty && qr_path.isNotEmpty && !onGuidance) {
           //todo: add direction
           await getDirection(
               cur_c?.connected_nodes[qr_path[nextDest]]['direction']);
@@ -358,86 +411,103 @@ class _DetectionPageState extends State<DetectionPage>
   }
 
   Future<void> getDirection(facing_target) async {
+    onGuidance = true;
     bool? canVibrate = await Vibration.hasVibrator();
     String speech = '';
-    _compassSubscription = FlutterCompass.events?.listen((event) async {
-      double gap = facing_target - event.heading;
-      //print('gap: $gap, face: $facing_target , head: ${event.heading}');
-      if (gap > 180 || gap < -180) {
-        if (event.heading!.isNegative) {
-          gap = gap - 360;
-        } else {
-          gap = 360 + gap;
-        }
-      }
+    int skip = 0;
 
-      if (gap.truncate() >= -40 && gap.truncate() <= 40) {
-        if (speech != 'Move straight') {
-          speech = 'Move straight';
-          await speak('Move straight');
-        }
-      } else if (gap.truncate() > 0 && gap.truncate() < 180) {
-        if (canVibrate == true) {
-          await Vibration.vibrate(duration: 100);
-        }
-        if (speech != 'Turn right') {
-          speech = 'Turn right';
-          await speak('Turn right');
-        }
+    _compassSubscription = FlutterCompass.events?.listen((event) async {
+      if (skip < 3) {
+        ++skip;
       } else {
-        if (canVibrate == true) {
-          await Vibration.vibrate(duration: 100);
+        double gap = facing_target - event.heading;
+        if (gap > 180 || gap < -180) {
+          if (event.heading!.isNegative) {
+            gap = gap - 360;
+          } else {
+            gap = 360 + gap;
+          }
         }
-        if (speech != 'Turn left') {
-          speech = 'Turn left';
-          await speak('Turn left');
+
+        if (gap.truncate() >= -40 && gap.truncate() <= 40) {
+          if (speech != 'Move straight') {
+            await speak('Move straight');
+            speech = 'Move straight';
+          }
+        } else if (gap.truncate() > 0 && gap.truncate() < 180) {
+          if (canVibrate == true) {
+            await Vibration.vibrate(duration: 100);
+          }
+          if (speech != 'Turn right') {
+            await speak('Turn right');
+            speech = 'Turn right';
+          }
+        } else {
+          if (canVibrate == true) {
+            await Vibration.vibrate(duration: 100);
+          }
+          if (speech != 'Turn left') {
+            await speak('Turn left');
+            speech = 'Turn left';
+          }
         }
       }
     });
   }
 
   Future<bool> showDestination(c_marker_id, c_id) async {
-    await speak('choose your destination');
+    //await speak('choose your destination');
     await showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-              title: Text('Destinations'),
-              scrollable: true,
-              content: SizedBox(
-                height: 300,
-                width: 300,
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: circles.length,
-                  itemBuilder: (BuildContext context, int index) {
-                    if (circles[index].id == c_id) {
-                      return Container();
-                    }
+      barrierDismissible: false,
+      context: context,
+      builder: (_) => AlertDialog(
+        title:
+            Semantics(focused: true, child: Text('Choose Your Destinations')),
+        scrollable: true,
+        content: Column(
+          children: [
+            SizedBox(
+              height: 300,
+              width: 300,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: circles.length,
+                itemBuilder: (BuildContext context, int index) {
+                  if (circles[index].id == c_id ||
+                      circles[index].connected_nodes.isEmpty) {
+                    return Container();
+                  }
 
-                    return ListTile(
-                      title: Text(circles[index].name ?? '',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                      onTap: () async {
-                        speak(circles[index].name);
-                        setState(() {
-                          nextDest = 1;
-                          ar_path = Dijkstra.findPathFromGraph(ar_floorGraph,
-                              c_marker_id, circles[index].marker_id.toString());
-                          qr_path = Dijkstra.findPathFromGraph(
-                              qr_floorGraph, c_id, circles[index].id);
-                          dest_marker_id = circles[index].marker_id;
-                          dest_name = circles[index].name;
-                        });
-                        Navigator.of(context).pop();
-                      },
+                  return ListTile(
+                    title: Text(circles[index].name ?? '',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    onTap: () async {
+                      setState(() {
+                        nextDest = 1;
+                        ar_path = Dijkstra.findPathFromGraph(ar_floorGraph,
+                            c_marker_id, circles[index].marker_id.toString());
+                        qr_path = Dijkstra.findPathFromGraph(
+                            qr_floorGraph, c_id, circles[index].id);
+                        dest_qr_id = circles[index].id;
+                        dest_marker_id = circles[index].marker_id;
+                        dest_name = circles[index].name;
+                      });
+                      Navigator.of(context).pop();
+                    },
 
-                      onLongPress: () =>
-                          speak(circles[index].name), //todo: blinder sensor
-                    );
-                  },
-                ),
+                    onLongPress: () =>
+                        speak(circles[index].name), //todo: blinder sensor
+                  );
+                },
               ),
-            ));
+            ),
+            TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text('Cancel'))
+          ],
+        ),
+      ),
+    );
 
     return ar_path.isNotEmpty && qr_path.isNotEmpty;
   }
@@ -477,11 +547,151 @@ class _DetectionPageState extends State<DetectionPage>
                 img_height))
             .toList();
         setState(() {});
-        return true;
+        return circles.isNotEmpty;
       }
     }
 
     return false;
+  }
+
+  Future<Image?> downloadImage(String location) async {
+    final imageName = '${location}_map.png';
+    final ref =
+        FirebaseStorage.instance.ref().child('blueprints').child(imageName);
+    try {
+      final img = await ref.getDownloadURL();
+      return Image.network(img.toString());
+    } catch (e) {
+      print('Error fetching image: $e');
+      return null;
+    }
+  }
+
+  showUserPosition(String location, String circleID) async {
+    Image? uploadedImage = await downloadImage(location);
+
+    return showDialog(
+      context: context,
+      builder: (_) => StreamBuilder<CompassEvent>(
+          stream: FlutterCompass.events,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Text('Error reading heading: ${snapshot.error}');
+            }
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(),
+              );
+            }
+            double? direction = snapshot.data!.heading;
+            return Dialog(
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              insetPadding: EdgeInsets.all(0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Stack(
+                    children: [
+                      SizedBox(
+                        width: MediaQuery.of(context).size.width,
+                        height: MediaQuery.of(context).size.height / 1.5,
+                        child: Image(
+                          image: uploadedImage!.image,
+                          fit: BoxFit.fill, //BoxFit.contain?
+                          alignment: Alignment.center,
+                        ),
+                      ),
+                      ...qr_path.mapIndexed((index, current_id) {
+                        if (index + 1 < qr_path.length) {
+                          Circle next = circles.firstWhere(
+                              (element) => element.id == qr_path[index + 1]);
+                          Circle current = circles.firstWhere(
+                              (element) => element.id == current_id);
+                          return CustomPaint(
+                            painter: drawEdges(current, next),
+                          );
+                        } else {
+                          return Divider(
+                            color: Colors.transparent,
+                            thickness: 0,
+                          );
+                        }
+                      }),
+                      ...circles.map((circle) {
+                        return Positioned(
+                          left: circle.id == circleID
+                              ? circle.position.dx - circle.size
+                              : circle.position.dx,
+                          top: circle.id == circleID
+                              ? circle.position.dy - circle.size
+                              : circle.position.dy,
+                          child: circle.id == circleID
+                              ? Transform.rotate(
+                                  angle: (direction! * (pi / 180)),
+                                  child: Image.asset(
+                                    'assets/navigation.png',
+                                    scale: 1.1,
+                                    width: circle.size * 3,
+                                    height: circle.size * 3,
+                                  ))
+                              : Container(
+                                  width: circle.size,
+                                  height: circle.size,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.blue,
+                                  ),
+                                ),
+                        );
+                      })
+                    ],
+                  ),
+                  SizedBox(
+                    height: 10,
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Row(
+                        children: [
+                          Image.asset(
+                            'assets/navigation.png',
+                            scale: 1.1,
+                            width: 30,
+                            height: 30,
+                          ),
+                          Text(
+                            'Current Location',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                            width: 20,
+                            height: 20,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.blue,
+                            ),
+                          ),
+                          SizedBox(
+                            width: 10,
+                          ),
+                          Text('List of destination point',
+                              style: TextStyle(color: Colors.white)),
+                        ],
+                      )
+                    ],
+                  )
+                ],
+              ),
+            );
+          }),
+    );
   }
 
   Future<void> speak(text) async {
@@ -495,44 +705,92 @@ class _DetectionPageState extends State<DetectionPage>
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
-        title: Text(
-          'MarkerNav',
-          style: GoogleFonts.pacifico(
-            textStyle: TextStyle(
-              color: Colors.white,
+        leading: ExcludeSemantics(
+          child: TextButton(
+              onPressed: () async {
+                await _camController.stopImageStream();
+                await _camController.pausePreview();
+
+                _compassSubscription
+                    ?.cancel()
+                    .whenComplete(() => onGuidance = false);
+                await flutterTts.stop();
+                await Navigator.push(context,
+                    MaterialPageRoute(builder: (context) => QRScanPage()));
+
+                result = {}; //markerID, profileID, floorID
+                ar_path = [];
+                qr_path = [];
+
+                initCamera();
+
+                setState(() {});
+              },
+              child: Text(
+                'QR',
+                style: TextStyle(color: Colors.white, fontSize: 20),
+              )),
+        ),
+        title: ExcludeSemantics(
+          child: Text(
+            'MarkerNav',
+            style: GoogleFonts.pacifico(
+              textStyle: TextStyle(
+                color: Colors.white,
+              ),
             ),
           ),
         ),
         centerTitle: true,
         actions: [
-          IconButton(
-              padding: EdgeInsets.only(right: 16),
-              onPressed: () async {
-                await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => Auth().currentUser == null
-                            ? LoginPage()
-                            : EditProfilePage()));
+          ExcludeSemantics(
+            child: IconButton(
+                padding: EdgeInsets.only(right: 16),
+                onPressed: () async {
+                  await _camController.stopImageStream();
+                  await _camController.pausePreview();
 
-                setState(() {});
-              },
-              icon: Icon(
-                Icons.login_outlined,
-                color: Colors.white,
-                size: 30,
-              )),
+                  _compassSubscription
+                      ?.cancel()
+                      .whenComplete(() => onGuidance = false);
+                  await flutterTts.stop();
+                  await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => Auth().currentUser == null
+                              ? LoginPage()
+                              : EditProfilePage()));
+
+                  result = {}; //markerID, profileID, floorID
+                  ar_path = [];
+                  qr_path = [];
+
+                  await _camController.resumePreview();
+                  await _camController
+                      .startImageStream((image) => _processCameraImage(image));
+
+                  setState(() {});
+                },
+                icon: Icon(
+                  Icons.login_outlined,
+                  color: Colors.white,
+                  size: 30,
+                )),
+          ),
         ],
       ),
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            height: MediaQuery.of(context).size.height / 1.2,
-            child: Expanded(
+          Expanded(
+            child: SizedBox(
+              height: MediaQuery.of(context).size.height,
+              width: MediaQuery.of(context).size.width,
               child: Stack(
                 children: [
                   SizedBox(
                     height: MediaQuery.of(context).size.height,
+                    width: MediaQuery.of(context).size.width,
                     child: FutureBuilder<void>(
                         future: _initializeControllerFuture,
                         builder: (context, snapshot) {
@@ -550,6 +808,7 @@ class _DetectionPageState extends State<DetectionPage>
                   ..._arucos.map(
                     (aru) => DetectionsLayer(
                       arucos: aru,
+                      //screen_orient: screen_orient,
                     ),
                   ),
                   Visibility(
@@ -566,17 +825,22 @@ class _DetectionPageState extends State<DetectionPage>
                                 backgroundColor: Colors.black54,
                                 foregroundColor: Colors.white,
                                 onPressed: () async {
-                                  _compassSubscription?.cancel();
+                                  await _compassSubscription
+                                      ?.cancel()
+                                      .whenComplete(() => onGuidance = false);
                                   await flutterTts.stop();
-                                  speak('Navigation stop');
+                                  await speak('Navigation stop');
                                   setState(() {
+                                    skipfirstScan = true;
                                     result = {};
                                     ar_path = [];
                                     qr_path = [];
                                   });
                                 },
-                                icon: Icon(Icons.cancel),
-                                label: Text('Stop Navigation'),
+                                icon:
+                                    ExcludeSemantics(child: Icon(Icons.cancel)),
+                                label: ExcludeSemantics(
+                                    child: Text('Stop Navigation')),
                               ),
                             ],
                           ),
@@ -591,33 +855,49 @@ class _DetectionPageState extends State<DetectionPage>
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                  padding: EdgeInsets.all(8.0),
-                  child: GestureDetector(
-                    onLongPress: () {
-                      if (result.isNotEmpty) {
-                        speak(
-                            '$profileName Floor ${result['floorID']! - 999} ${cur_c?.name}');
-                      } else {
-                        speak('Scan a Marker');
-                      }
-                    },
-                    child: result.isEmpty
-                        ? Text(
-                            'Scan a Marker',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 20),
-                          )
-                        : Text(
-                            '$profileName Floor ${result['floorID']! - 999} ${cur_c?.name}',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15),
-                          ),
-                  )),
+              ExcludeSemantics(
+                child: Container(
+                    padding: EdgeInsets.all(8.0),
+                    child: GestureDetector(
+                      onTap: () async {
+                        if (result.isNotEmpty) {
+                          await _camController.stopImageStream();
+                          await _camController.pausePreview();
+
+                          await showUserPosition(
+                              '$profileName Floor ${result['floorID']! - 999}',
+                              cur_c!.id);
+
+                          await _camController.resumePreview();
+                          await _camController.startImageStream(
+                              (image) => _processCameraImage(image));
+                        }
+                      },
+                      onLongPress: () {
+                        if (result.isNotEmpty) {
+                          speak(
+                              '$profileName Floor ${result['floorID']! - 999} ${cur_c?.name}');
+                        } else {
+                          speak('Scan a Marker');
+                        }
+                      },
+                      child: result.isEmpty
+                          ? Text(
+                              'Scan a Marker',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 20),
+                            )
+                          : Text(
+                              '$profileName Floor ${result['floorID']! - 999} ${cur_c?.name}',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 20),
+                            ),
+                    )),
+              ),
             ],
           )
         ],

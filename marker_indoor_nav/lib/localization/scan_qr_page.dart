@@ -71,122 +71,129 @@ class _QRScanPageState extends State<QRScanPage> {
           });
 
           controller.scannedDataStream.listen((qr) async {
-            List<String> test = qr.code!.split('_');
+            await controller.pauseCamera();
+            await showDialog(
+                context: context,
+                builder: (_) => AlertDialog(
+                      title: Text('QR code detected'),
+                    )).then((value) async => await controller.resumeCamera());
 
-            if (test.isNotEmpty && test.length == 2) {
-              if (result.isEmpty && path.isEmpty) {
-                speak('Marker Detected');
-                await controller.pauseCamera();
-                showDialog(
-                    context: context,
-                    builder: (_) => Center(
-                          child: CircularProgressIndicator(),
-                        ));
+            // List<String> test = qr.code!.split('_');
 
-                if (await loadCircles(test)) {
-                  for (var circle in circles) {
-                    if (circle.id == test[1]) {
-                      Navigator.of(context).pop();
-                      speak('Currently at ${test[0]} ${circle.name}');
+            // if (test.isNotEmpty && test.length == 2) {
+            //   if (result.isEmpty && path.isEmpty) {
+            //     speak('Marker Detected');
+            //     await controller.pauseCamera();
+            //     showDialog(
+            //         context: context,
+            //         builder: (_) => Center(
+            //               child: CircularProgressIndicator(),
+            //             ));
 
-                      if (await showDestination(circle.id)) {
-                        setState(() {
-                          c = circle;
-                          result = test;
-                        });
-                      }
-                      break;
-                    }
-                  }
+            //     if (await loadCircles(test)) {
+            //       for (var circle in circles) {
+            //         if (circle.id == test[1]) {
+            //           Navigator.of(context).pop();
+            //           speak('Currently at ${test[0]} ${circle.name}');
 
-                  if (path.isNotEmpty) {
-                    //todo: add direction
-                    await getDirection(
-                        c?.connected_nodes[path[next]]['direction']);
-                  }
-                } else {
-                  Navigator.of(context).pop();
-                  speak('Unknown Marker');
-                }
-                await controller.resumeCamera();
-              } else if (path.isNotEmpty && result[1] != test[1]) {
-                _compassSubscription?.cancel();
-                await flutterTts.stop();
+            //           if (await showDestination(circle.id)) {
+            //             setState(() {
+            //               c = circle;
+            //               result = test;
+            //             });
+            //           }
+            //           break;
+            //         }
+            //       }
 
-                if (result[0] == test[0]) {
-                  if (test[1] == dest_id) {
-                    //reach destination
-                    controller.pauseCamera();
+            //       if (path.isNotEmpty) {
+            //         //todo: add direction
+            //         await getDirection(
+            //             c?.connected_nodes[path[next]]['direction']);
+            //       }
+            //     } else {
+            //       Navigator.of(context).pop();
+            //       speak('Unknown Marker');
+            //     }
+            //     await controller.resumeCamera();
+            //   } else if (path.isNotEmpty && result[1] != test[1]) {
+            //     _compassSubscription?.cancel();
+            //     await flutterTts.stop();
 
-                    speak(
-                        'You have reach your destination,${test[0]} $dest_name');
-                    Timer? timer = Timer(Duration(seconds: 7), () {
-                      Navigator.of(context, rootNavigator: true).pop();
-                    });
-                    await showDialog(
-                      context: context,
-                      builder: (BuildContext context) {
-                        return AlertDialog(
-                          title: Text('Destination Arrived'),
-                          actions: [
-                            TextButton(
-                              child: Text("Continue"),
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                              },
-                            ),
-                          ],
-                        );
-                      },
-                    ).then((value) {
-                      controller.resumeCamera();
-                      timer?.cancel();
-                      timer = null;
-                    });
-                    setState(() {
-                      result = [];
-                      path = [];
-                    });
-                  } else if (test[1] == path[next]) {
-                    //identrify next marker
-                    setState(() {
-                      c = circles
-                          .firstWhere((circle) => circle.id == path[next]);
-                      result = test;
-                      next++;
-                    });
-                    await speak('Reach ${test[0]} ${c?.name}');
-                  } else if (floorGraph.keys.contains(test[1])) {
-                    //reroute
-                    await speak('Reach the wrong next point, Rerouting');
+            //     if (result[0] == test[0]) {
+            //       if (test[1] == dest_id) {
+            //         //reach destination
+            //         controller.pauseCamera();
 
-                    setState(() {
-                      next = 1;
-                      path = Dijkstra.findPathFromGraph(
-                          floorGraph, test[1], dest_id);
-                      c = circles.firstWhere((circle) => circle.id == test[1]);
-                      result = test;
-                    });
+            //         speak(
+            //             'You have reach your destination,${test[0]} $dest_name');
+            //         Timer? timer = Timer(Duration(seconds: 7), () {
+            //           Navigator.of(context, rootNavigator: true).pop();
+            //         });
+            //         await showDialog(
+            //           context: context,
+            //           builder: (BuildContext context) {
+            //             return AlertDialog(
+            //               title: Text('Destination Arrived'),
+            //               actions: [
+            //                 TextButton(
+            //                   child: Text("Continue"),
+            //                   onPressed: () {
+            //                     Navigator.of(context).pop();
+            //                   },
+            //                 ),
+            //               ],
+            //             );
+            //           },
+            //         ).then((value) {
+            //           controller.resumeCamera();
+            //           timer?.cancel();
+            //           timer = null;
+            //         });
+            //         setState(() {
+            //           result = [];
+            //           path = [];
+            //         });
+            //       } else if (test[1] == path[next]) {
+            //         //identrify next marker
+            //         setState(() {
+            //           c = circles
+            //               .firstWhere((circle) => circle.id == path[next]);
+            //           result = test;
+            //           next++;
+            //         });
+            //         await speak('Reach ${test[0]} ${c?.name}');
+            //       } else if (floorGraph.keys.contains(test[1])) {
+            //         //reroute
+            //         await speak('Reach the wrong next point, Rerouting');
 
-                    await speak('Reroute, Currently at ${test[0]} ${c?.name}');
-                  }
+            //         setState(() {
+            //           next = 1;
+            //           path = Dijkstra.findPathFromGraph(
+            //               floorGraph, test[1], dest_id);
+            //           c = circles.firstWhere((circle) => circle.id == test[1]);
+            //           result = test;
+            //         });
 
-                  if (path.isNotEmpty) {
-                    //todo: add direction
-                    await getDirection(
-                        c?.connected_nodes[path[next]]['direction']);
-                  }
-                } else {
-                  final doc = await FirebaseFirestore.instance
-                      .collection('maps')
-                      .doc(test[0])
-                      .get();
-                  if (doc.exists) {
-                    //todo: wrong floor
-                  }
-                }
-              }
-            }
+            //         await speak('Reroute, Currently at ${test[0]} ${c?.name}');
+            //       }
+
+            //       if (path.isNotEmpty) {
+            //         //todo: add direction
+            //         await getDirection(
+            //             c?.connected_nodes[path[next]]['direction']);
+            //       }
+            //     } else {
+            //       final doc = await FirebaseFirestore.instance
+            //           .collection('maps')
+            //           .doc(test[0])
+            //           .get();
+            //       if (doc.exists) {
+            //         //todo: wrong floor
+            //       }
+            //     }
+            //   }
+            // }
           });
         },
         overlay: QrScannerOverlayShape(
@@ -450,6 +457,14 @@ class _QRScanPageState extends State<QRScanPage> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).pop(),
+          icon: Icon(
+            Icons.arrow_back,
+            color: Colors.white,
+            size: 30,
+          ),
+        ),
         title: Text(
           'MarkerNav',
           style: GoogleFonts.pacifico(

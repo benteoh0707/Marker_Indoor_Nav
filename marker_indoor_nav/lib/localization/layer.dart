@@ -4,9 +4,11 @@ class DetectionsLayer extends StatelessWidget {
   const DetectionsLayer({
     Key? key,
     required this.arucos,
+    //this.screen_orient,
   }) : super(key: key);
 
   final List<double> arucos;
+  //final Orientation? screen_orient;
 
   @override
   Widget build(BuildContext context) {
@@ -17,11 +19,14 @@ class DetectionsLayer extends StatelessWidget {
 }
 
 class ArucosPainter extends CustomPainter {
-  ArucosPainter({required this.arucos});
+  ArucosPainter({
+    required this.arucos,
+    //this.screen_orient,
+  });
 
   // list of aruco coordinates, each aruco has 4 corners with x/y, total of 8 numbers per aruco
   final List<double> arucos;
-
+  //final Orientation? screen_orient;
   // paint we will use to draw to arucos
   final _paint = Paint()
     ..strokeWidth = 2.0
@@ -50,10 +55,20 @@ class ArucosPainter extends CustomPainter {
         // making sure not to overflow to the next aruco, hence the modulo 8, so when
         // j=3 corner1 will be the bottom-left corner, and corner2 will be the top-left (like j=0)
         final corner2Idx = arucoIdx + ((j + 1) * 2) % 8;
-
+        //Offset from = Offset.zero, to = Offset.zero;
         // Draw the line between the 2 corners
+
+        // if (screen_orient == Orientation.portrait) {
+        //   from = Offset(arucos[corner1Idx], arucos[corner1Idx + 1]);
+        //   to = Offset(arucos[corner2Idx], arucos[corner2Idx + 1]);
+        // } else {
+        //   from = Offset(arucos[corner1Idx + 1], arucos[corner1Idx]);
+        //   to = Offset(arucos[corner2Idx + 1], arucos[corner2Idx]);
+        // }
+
         final from = Offset(arucos[corner1Idx], arucos[corner1Idx + 1]);
         final to = Offset(arucos[corner2Idx], arucos[corner2Idx + 1]);
+
         canvas.drawLine(from, to, _paint);
       }
     }
